@@ -14,7 +14,9 @@ from shapely.affinity import translate
 from petsc4py import PETSc
 from data_generation.src.mesh.creation import create_cell_like_shape
 
-def strain(u: ufl.Argument) -> ufl.Form:
+def strain(
+    u: ufl.Argument
+) -> ufl.Form:
     """
     Computes the strain of the displacement field
 
@@ -32,7 +34,7 @@ def stress_elas(
     u: ufl.Argument, 
     lambda_e: float, 
     mu_e: float
-    ) -> ufl.Form:
+) -> ufl.Form:
     """
     Computes the elastic stress of the displacement field (Hooke's law)
 
@@ -54,7 +56,7 @@ def stress_visc(
     lambda_v: float, 
     mu_v: float, 
     delta_t: float
-    ) -> ufl.Form:
+) -> ufl.Form:
     """
     Computes the viscous stress tensor of the displacmeent field
 
@@ -80,9 +82,21 @@ def create_dirichlet(
     boundary_y: np.ndarray, 
     zone_radius: float = None, 
     zone_center: tuple = None
-    ) -> fem.DirichletBC:
+) -> fem.DirichletBC:
     """
-    Creates a Dirichlet BC on the mesh boundary outside the pipette region.
+    Creates a Dirichlet BC on the mesh boundary outside the zone of traction application.
+
+    Args:
+        msh (mesh.Mesh): Finite elements mesh
+        dfacets (callable): Function defining the Dirichlet condition
+        V (fem.FunctionSpace): Function space on the mesh
+        boundary_x (np.ndarray): x coordinates of the boundary elements
+        boundary_y (np.ndarray): y coordinates of the boundary elements
+        zone_center (tuple, optional): Center of the zone of aspiration. Defaults to None.
+        zone_radius (float, optional): Radius of the zone of aspiration. Defaults to None.
+
+    Returns:
+        fem.DirichletBC: _description_
     """
     fdim = msh.topology.dim - 1
     boundary_facets = mesh.locate_entities_boundary(

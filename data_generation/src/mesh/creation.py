@@ -1,7 +1,7 @@
 """Creates the gmsh mesh for finite elements computations"""
 
 
-from typing import Callable
+from typing import Callable, Tuple
 import gmsh # type: ignore
 import numpy as np
 import cv2
@@ -59,7 +59,7 @@ def gmsh_disk(
     model: gmsh.model,
     name: str,
     physical_length: float
-):
+) -> gmsh.model:
     '''Create a Gmsh model of a disk.
 
     Args:
@@ -93,7 +93,14 @@ def gmsh_disk(
     return model
 
 
-def create_cell_like_shape(num_points, base_radius, noise_amplitude, num_fourier_modes, rng, r_min_ratio=0.5):
+def create_cell_like_shape(
+    num_points: int, 
+    base_radius: float, 
+    noise_amplitude: float, 
+    num_fourier_modes: int, 
+    rng: np.random.Generator, 
+    r_min_ratio: float = 0.5
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generates a 2D cell-like boundary without self-crossing.
     Thanks to Samuel Dubos for the inspiration.
@@ -103,10 +110,13 @@ def create_cell_like_shape(num_points, base_radius, noise_amplitude, num_fourier
         base_radius (float): Average radius of the cell.
         noise_amplitude (float): Amplitude of Fourier noise.
         num_fourier_modes (int): Number of Fourier modes for perturbation.
+        rng (np.random.Generator): Random number generator instance to ensure reproducibility.
         r_min_ratio (float): Minimum allowed radius as fraction of base_radius.
 
     Returns:
-        x_coordinates, y_coordinates (np.ndarray): Ordered coordinates of the boundary.
+        Tuple[np.ndarray, np.ndarray]:
+            - x_sorted (np.ndarray): shape (num_points,), x coordinates of the boundary sorted by polar angle.
+            - y_sorted (np.ndarray): shape (num_points,), y coordinates of the boundary sorted by polar angle.
     """
     angles = np.linspace(0, 2*np.pi, num_points, endpoint=False)
     fourier_noise = np.zeros(num_points)
@@ -146,7 +156,7 @@ def gmsh_cell_shape(
     noise_amplitude: float = 0.2,
     num_fourier_modes: int = 5,
     lc: float = None
-) -> gmsh.model:
+) -> Tuple[gmsh.model, np.ndarray, np.ndarray]:
     """
     Create a Gmsh model of a random cell-like shape.
 
@@ -154,13 +164,17 @@ def gmsh_cell_shape(
         model (gmsh.model): Gmsh model to add the mesh to.
         name (str): Name (identifier) of the mesh to add.
         physical_length (float): Base radius of the shape.
-        num_points (int): Number of boundary discretization points.
-        noise_amplitude (float): Amplitude of Fourier noise.
-        num_fourier_modes (int): Number of Fourier modes for perturbation.
-        lc (float): Characteristic mesh length (default: 0.1 * physical_length).
+        rng (np.random.Generator): Random number generator instance to ensure reproducibility.
+        num_points (int): Number of boundary discretization points. Defaults to 100.
+        noise_amplitude (float): Amplitude of Fourier noise. Defaults to 0.2.
+        num_fourier_modes (int): Number of Fourier modes for perturbation. Defaults to 5.
+        lc (float, optional): Characteristic mesh length. Defaults to 0.1 * physical_length.
 
     Returns:
-        gmsh.model: Gmsh model with a random shape mesh added.
+        Tuple[gmsh.model, np.ndarray, np.ndarray]:
+            - model (gmsh.model): Gmsh model with the random cell-like shape mesh added.
+            - x_coords (np.ndarray): shape (num_points,), x coordinates of the boundary.
+            - y_coords (np.ndarray): shape (num_points,), y coordinates of the boundary.
     """
     model.add(name)
     model.setCurrent(name)
@@ -191,17 +205,20 @@ def gmsh_cell_from_image(
     img: np.ndarray,
     model: gmsh.model,
     name: str
-) -> gmsh.model:
+) -> Tuple[gmsh.model, np.ndarray, np.ndarray]:
     """
     Create a Gmsh model of a cell from an image.
 
     Args:
-        img (np.ndarray): Image of a masked cell
+        img (np.ndarray): Binary mask image of a single cell, shape (H, W), dtype uint8.
         model (gmsh.model): Gmsh model to add the mesh to.
         name (str): Name (identifier) of the mesh to add.
 
     Returns:
-        gmsh.model: Gmsh model with a mesh of a cell added.
+        Tuple[gmsh.model, np.ndarray, np.ndarray]:
+            - model (gmsh.model): Gmsh model with the cell mesh added.
+            - x_coords (np.ndarray): x coordinates of the cell contour.
+            - y_coords (np.ndarray): y coordinates of the cell contour.
     """
     # Settings of the model
     model.add(name)
@@ -235,16 +252,19 @@ def create_mesh(
     name: str,
     filename: str,
     mode: str
-):
-    """Create a DOLFINx from a Gmsh model and output to file.
+) -> None:
+    """
+    Create a DOLFINx mesh from a Gmsh model and write it to an XDMF file.
 
     Args:
-        comm (MPI.Comm): MPI communicator top create the mesh on.
+        comm (MPI.Comm): MPI communicator to create the mesh on.
         model (gmsh.model): Gmsh model.
-        name (str): Name (identifier) of the mesh to add.
-        filename (str): XDMF filename.
-        mode (str): XDMF file mode. "w" (write) or "a" (append).
+        name (str): Name (identifier) of the mesh.
+        filename (str): Path to the output XDMF file.
+        mode (str): XDMF file writing mode. "w" to write, "a" to append.
 
+    Returns:
+        None
     """
     mesh_data = gmshio.model_to_mesh(model, comm, rank=0)
     
@@ -294,23 +314,33 @@ def create_mesh_file(
     noise_amplitude=None,
     num_fourier_modes=None,
     lc=None
-) -> dolfinx.mesh.Mesh:
+) -> Tuple[np.ndarray, np.ndarray, dolfinx.mesh.Mesh]:
     """    
     Creates a computational mesh using a user-defined mesh function,
-    writes it to XDMF, and reads it back as a DolfinX mesh.
+    writes it to XDMF, and reads it back as a DOLFINx mesh.
 
     Args:
-        mesh_function (Callable): Function that generates the Gmsh model.
-        img (np.ndarray, optional): Image of a masked cell if we create the mesh from a masked cell. Defaults to None.
-        physical_length (float, optional): Physical length of the cell if we create the mesh from a random shape from scratch. Defaults to None.
-        rng (random.generator, optional): random generator. Defaults to None.
-        num_points (int, optional): Number of points to create the mesh if we create it from a random shape from scratch. Defaults to None.
-        noise_amplitude (float, optional): Amplitude of the noise to add to the original disk if we create the mesh from a random shape from scratch. Defaults to None.
-        num_fourier_modes (int, optional): Number of Fourier modes on the original disk if we create the mesh from a random shape from scratch. Defaults to None.
-        lc (float, optional): Minimum allowed radius as fraction of physical_length. Defaults to None.
+        mesh_function (Callable): Function that generates the Gmsh model. Either
+            gmsh_cell_from_image or gmsh_cell_shape.
+        img (np.ndarray, optional): Binary mask image of a single cell if creating
+            the mesh from an image. Defaults to None.
+        physical_length (float, optional): Base radius of the cell if creating
+            the mesh from a random shape. Defaults to None.
+        rng (np.random.Generator, optional): Random number generator instance to 
+            ensure reproducibility. Defaults to None.
+        num_points (int, optional): Number of boundary points if creating the mesh
+            from a random shape. Defaults to None.
+        noise_amplitude (float, optional): Amplitude of Fourier noise if creating
+            the mesh from a random shape. Defaults to None.
+        num_fourier_modes (int, optional): Number of Fourier modes if creating
+            the mesh from a random shape. Defaults to None.
+        lc (float, optional): Characteristic mesh length. Defaults to None.
 
     Returns:
-        dolfinx.mesh.Mesh: The generated computational mesh ready for FEM simulation.
+        Tuple[np.ndarray, np.ndarray, dolfinx.mesh.Mesh]:
+            - x_coords (np.ndarray): x coordinates of the cell boundary.
+            - y_coords (np.ndarray): y coordinates of the cell boundary.
+            - msh (dolfinx.mesh.Mesh): The generated computational mesh ready for FEM simulation.
     """
     # Initialize gmsh
     gmsh.initialize()
@@ -338,12 +368,17 @@ def create_mesh_file(
     return x_coords, y_coords, msh
     
     
-def visualize_mesh(V: dolfinx.fem.functionspace):
+def visualize_mesh(
+    V: dolfinx.fem.functionspace
+) -> None:
     """
-    Creates a visualization of a mesh
+    Creates an interactive visualization of a mesh using PyVista.
 
     Args:
-        V (dolfinx.fem.functionspace): The function space associated with the mesh
+        V (dolfinx.fem.FunctionSpace): The function space associated with the mesh to visualize.
+
+    Returns:
+        None
     """
     p = pyvista.Plotter()
     topology, cell_types, geometry = dolfinx.plot.vtk_mesh(V)

@@ -17,6 +17,7 @@ from petsc4py.PETSc import ScalarType # pylint: disable=no-name-in-module
 from data_generation.src.mesh.creation import create_mesh_file, create_cell_like_shape
 from data_generation.src.fem.solver import finite_elements_force_zone
 
+
 def closest_cell(
     mesh: dolfinx.mesh.Mesh,
     point: np.ndarray,
@@ -232,6 +233,7 @@ def create_intensities_perlin(
     intensities.x.array[:] = intensities_vals
     return intensities
 
+
 def map_intensities_from_image(
     mesh: dolfinx.mesh.Mesh, 
     img: np.ndarray
@@ -278,7 +280,7 @@ def deform_mesh(
     """
     Deform the input mesh according to a given displacement field.
 
-    The displacement field `u` is evaluated at the mesh geometry points,
+    The displacement field u is evaluated at the mesh geometry points,
     and each node of the mesh is updated by adding the corresponding
     displacement vector.
 
@@ -311,16 +313,22 @@ def deform_mesh(
     return mesh
 
 
-def plot_boundary_conditions(msh, intensities, x_range, y_range, save_path):
+def plot_boundary_conditions(
+    msh: dolfinx.mesh.Mesh, 
+    intensities: dolfinx.fem.Function, 
+    x_range: Tuple[float, float], 
+    y_range: Tuple[float, float], 
+    save_path: str
+) -> None:
     """
-    Plots the image of the cell with the associated boundary conditions
-    
+    Plots the image of the cell with the associated boundayr conditions
+
     Args:
-        msh (_type_): _description_
-        intensities (_type_): _description_
-        x_range (_type_): _description_
-        y_range (_type_): _description_
-        save_path (_type_): _description_
+        msh (dolfinx.mesh.Mesh): The computational mesh
+        intensities (dolfinx.fem.Function): DG function representing the intensity of the cell image over the mesh
+        x_range (Tuple[float, float]): Spatial range in the x-direction.
+        y_range (Tuple[float, float]): Spatial range in the y-direction.
+        save_path (str): Path to the folder where the plot is saved 
     """
     original_image, mask_image = interpolation(msh, intensities, x_range, y_range)
     contours = skimage.measure.find_contours(mask_image[:,:,0])
@@ -375,44 +383,72 @@ def create_image_simu(
     seed_image=None,
 ) -> Tuple[np.ndarray, str]:
     """
-    Generate a sequence of simulated microscopy images based on a
-    finite element (FE) deformation simulation with Perlin noise texture.
+    Generate a sequence of simulated microscopy images based on a finite element 
+    (FE) deformation simulation.
 
-    The simulation first creates a mesh and a Perlin noise intensity field,
-    then applies a time-dependent displacement due to a local force (defined
-    by `zone_center` and `zone_radius`), and finally interpolates the deformed
-    images on a regular grid to produce synthetic 2D or 3D image sequences.
+    Creates a mesh (either from an image or procedurally), applies a time-dependent
+    displacement due to a local traction force, and interpolates the deformed intensity
+    field on a regular grid to produce a synthetic 2D image sequence saved as a TIFF.
+    If no image is provided, a Perlin noise texture is used as intensity field.
 
     Args:
-        mesh_function (Callable): Function used to generate the mesh geometry.
-        physical_length (float): Physical size of the simulated domain.
-        dirichlet_ (Callable): Function defining Dirichlet boundary conditions.
-        t_end (float): Final simulation time.
+        mesh_function (Callable): Function used to generate the Gmsh mesh. Either
+            gmsh_cell_from_image or gmsh_cell_shape.
+        dirichlet_ (Callable): Function defining Dirichlet boundary conditions on the mesh.
+        t_end (float): Final simulation time (in seconds).
         num_time_steps (int): Number of time steps in the simulation.
-        zone_radius (float): Radius of the active force zone.
-        zone_center (tuple): Center coordinates of the force zone.
-        traction_zone (float): Magnitude of the applied traction.
-        youngs_modulus (float or List[float]): Elastic modulus (possibly region-dependent).
-        nu (float or List[float]): Poisson ratio.
-        eta (float or List[float]): Viscosity coefficient(s).
-        n (int): Number of grid points for interpolation.
-        name (str): Base name of the output TIFF file.
-        x_range (Tuple[float, float]): Spatial range in the x-direction.
-        y_range (Tuple[float, float]): Spatial range in the y-direction.
-        z_range (Optional[Tuple[float, float]]): Spatial range in z (for 3D).
-        regions (Optional[List[Tuple[float, float]]]): List of radial region definitions.
-        num_points (Optional[float]): Number of mesh points (if generated procedurally).
-        noise_amplitude (Optional[float]): Amplitude of the geometric noise on the mesh.
-        num_fourier_modes (Optional[float]): Number of Fourier modes for shape perturbation.
-        lc (Optional[float]): Characteristic length of mesh elements.
-        seed (int): Random seed.
-        grain (int): Degree of the DG function used for Perlin intensities.
+        traction_zone (float): Magnitude of the applied traction force (in Pa).
+        youngs_modulus (Union[float, List[float]]): Young's modulus of the cell (in Pa).
+            Can be a list if subparts are defined.
+        nu (Union[float, List[float]]): Poisson's ratio of the cell.
+            Can be a list if subparts are defined.
+        eta (Union[float, List[float]]): Viscosity coefficient(s) of the cell (in Pa.s).
+            Can be a list if subparts are defined. Use 0 for purely elastic.
+        name (str): Base name for the output TIFF file and saved figures.
+        img (np.ndarray, optional): Binary mask image of a single cell, used to
+            generate the mesh and intensity field. If None, a random shape and 
+            Perlin noise texture are used instead. Defaults to None.
+        x_range (Tuple[float, float], optional): Spatial range in the x-direction 
+            for interpolation. Inferred from img or n if not provided. Defaults to None.
+        y_range (Tuple[float, float], optional): Spatial range in the y-direction 
+            for interpolation. Inferred from img or n if not provided. Defaults to None.
+        physical_length (float, optional): Base radius of the randomly generated cell 
+            shape. Required if img is None. Defaults to None.
+        zone_radius (float, optional): Radius of the active traction force zone.
+            Defaults to None.
+        zone_center (tuple, optional): (x, y) center coordinates of the traction 
+            force zone. Defaults to None.
+        z_range (Tuple[float, float], optional): Spatial range in the z-direction.
+            Defaults to None.
+        subparts (Dict[int, Dict[str, float]], optional): Dictionary describing 
+            mechanical subregions of the cell. Keys are integer subregion indices, 
+            values are dicts with keys 'youngs_modulus' (float) and 'eta' (float).
+            Example: {1: {'youngs_modulus': 500.0, 'eta': 100.0}}.
+            Defaults to None.
+        num_points (int, optional): Number of boundary points for the procedural 
+            cell shape. Required if img is None. Defaults to None.
+        noise_amplitude (float, optional): Amplitude of the Fourier noise applied 
+            to the cell boundary. Required if img is None. Defaults to None.
+        num_fourier_modes (int, optional): Number of Fourier modes for the boundary 
+            perturbation. Required if img is None. Defaults to None.
+        lc (float, optional): Characteristic mesh element length. 
+            Defaults to 0.1 * physical_length if None.
+        seed (int, optional): Random seed for mesh generation and Perlin noise 
+            texture. Defaults to 1.
+        grain (int, optional): Degree of the DG function space used for Perlin 
+            noise intensities. Defaults to 2.
+        n (int, optional): Number of grid points per axis for interpolation output.
+            Used to set x_range and y_range when img is None. Defaults to None.
+        seed_image (int, optional): Random seed used for ground truth subpart 
+            placement and visualization. Defaults to None.
 
     Returns:
         Tuple[np.ndarray, str]:
-            - U_list: Array of displacement fields interpolated on a regular grid,
-              shape (num_time_steps, n, n, 2) in 2D or (num_time_steps, n, n, n, 3) in 3D.
-            - warped_image_path: Path to the saved multi-dimensional TIFF file.
+            - u_list (np.ndarray): Displacement fields interpolated on a regular grid, 
+              shape (num_time_steps, H, W, 2), dtype float32, where H and W are the 
+              grid dimensions inferred from y_range and x_range.
+            - warped_image_path (str): Path to the saved multi-frame TIFF file 
+              containing the warped image sequence, with axes 'TYX'.
     """
     rng = np.random.default_rng(seed=seed)
     
