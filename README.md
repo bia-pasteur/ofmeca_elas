@@ -123,7 +123,7 @@ Use `T`, `E`, `nu`, and `factors` in the `reg_exp.yaml` file to control the regu
 
 ## Microscopy images
 
-### Edit: mechanics/micro_exp.yaml
+### Edit: `mechanics/micro_exp.yaml`
 
 - `of_funcs`: list of optical flow algorithms to apply.
 
