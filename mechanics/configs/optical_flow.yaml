@@ -5,8 +5,8 @@ optical_flow:
   fista:
     num_iter: 150 # for synthetic exp : 150, for image 1 and 2: 300
     num_warp: 5
-    alpha: 0.1 # for synthetic exp and image 1: 0.1, for image 2: 0.3
-    beta: 0.8 # for synthetic exp, image 1 and image 2: 0.8
+    alpha: 0.2 # for synthetic exp and image 1: 0.1, for image 2: 0.3
+    beta: 0.5 # for synthetic exp, image 1 and image 2: 0.8
     eps: 0.001
     num_pyramid: 10
     pyramid_downscale: 1.5
@@ -15,7 +15,7 @@ optical_flow:
   hs:
     num_iter: 150 # for synthetic exp: 150, for image 1 and 2: 300
     num_warp: 5
-    alpha: 0.1 # for synthetic exp and image 1: 0.1, for image 2: 0.3
+    alpha: 0.2 # for synthetic exp and image 1: 0.1, for image 2: 0.3
     eps: 0.001
     num_pyramid: 10
     pyramid_downscale: 1.5
@@ -33,7 +33,7 @@ optical_flow:
     flags: 0
 
   tvl1:
-    attachment: 25
+    attachment: 20
     tightness: 0.5
     num_warp: 5 
     num_iter: 150

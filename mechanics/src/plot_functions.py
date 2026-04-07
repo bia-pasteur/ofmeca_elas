@@ -105,7 +105,9 @@ def save_of_strain_traction(
     if quiv_line is not None:
         cbar = fig.colorbar(quiv_line, ax=axes_line, orientation="vertical",
                             fraction=0.03, pad=0.02, shrink=0.95)
-        cbar.ax.tick_params(labelsize=10)
+        cbar.ax.tick_params(labelsize=10)#, colors='white')
+        # cbar.outline.set_edgecolor('white')
+        # plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
 
     data_list_strain = [results[implot]["deformation"]["gt"][0]] + [results[implot]["deformation"][m][0] for m in methods]
 
@@ -125,8 +127,10 @@ def save_of_strain_traction(
 
     cbar = fig.colorbar(ims[-1], ax=axes_line, orientation="vertical",
                         fraction=0.03, pad=0.02, shrink=0.95)
-    cbar.ax.tick_params(labelsize=10)
-
+    cbar.ax.tick_params(labelsize=10)#, colors='white')
+    # cbar.outline.set_edgecolor('white')
+    # plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
+    
     fields = [results[implot]["traction"]["gt"]] + [results[implot]["traction"][m] for m in methods]
 
     quiv_line = None
@@ -166,7 +170,9 @@ def save_of_strain_traction(
     if quiv_line is not None:
         cbar = fig.colorbar(quiv_line, ax=axes_line, orientation="vertical",
                             fraction=0.03, pad=0.02, shrink=0.95)
-        cbar.ax.tick_params(labelsize=10)
+        cbar.ax.tick_params(labelsize=10)#, colors='white')
+        # cbar.outline.set_edgecolor('white')
+        # plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
 
     if show: 
         plt.show()

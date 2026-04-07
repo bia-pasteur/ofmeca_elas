@@ -10,7 +10,54 @@ from mechanics.src.optical_flow.algorithms import farneback, hs_of, fista_of, tv
 from mechanics.src.utils import compute_lame, load_order_clean, generate_mask_on_micro_image, remap
 from mechanics.src.meca_of_pipeline import compute_of_strain_traction_micro_img
 from mechanics.src.plot_functions import plot_pos_dis_strain_trac_micro_image
+import matplotlib.pyplot as plt
 
+def plot_field(image: np.ndarray, flow: np.ndarray, step: int, scale: float):   
+    """
+    Plots quivers associated with a vector field on an image
+
+    Args:
+        image (np.ndarray): Image
+        flow (np.ndarray): Field
+        step (int): Sampling step for displaying vectors (e.g., 1 = every pixel, 2 = every second pixel)
+        scale (float): Scaling factor for quiver visualization.
+    """
+    print('function')
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    H, W = image[0].shape[:2]
+    y, x = np.mgrid[0:H:step, 0:W:step]
+
+    v = flow[0, ::step, ::step]
+    u = flow[1, ::step, ::step]
+    norm = np.sqrt(u**2 + v**2)
+    ax.imshow(image[0], cmap='gray', zorder=0)
+    
+    quiv = ax.quiver(
+        x, y, u, v, norm,
+        cmap='Reds',
+        clim=(0, norm.max()),
+        angles='xy',
+        scale_units='xy',
+        scale=scale,
+        zorder=1,
+        width=0.004
+    )
+
+    ax.axis('off')
+    ax.set_title('Field', fontsize=15)
+    
+    cbar = fig.colorbar(
+        quiv,
+        ax=ax,
+        orientation="vertical",
+        fraction=0.05,
+        pad=0.03
+    )
+    cbar.ax.tick_params(labelsize=10)
+
+    plt.show()
+    
 def process_image(
     image: Path, 
     maskcell: np.ndarray, 
@@ -116,7 +163,13 @@ def main(
         of_for_computation.append(of_func)
         params_for_computation.append(of_params)
     
-    process_image(image=image, maskcell=maskcell, results_dir=Path(general.results_dir), of_for_computation=of_for_computation, params_for_computation=params_for_computation, micro_exp=micro_exp)
+    h = fista_of(image, params_for_computation[0], global_flow=False)
+
+    h_mask = h * maskcell
+    
+    plot_field(image, h_mask[:,0], step=10, scale=0.5)
+    
+    #process_image(image=image, maskcell=maskcell, results_dir=Path(general.results_dir), of_for_computation=of_for_computation, params_for_computation=params_for_computation, micro_exp=micro_exp)
 
 if __name__ == "__main__":
     jsonargparse.auto_cli(main, as_positional=False)
