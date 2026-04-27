@@ -54,7 +54,7 @@ pip install -r requirements.txt
 Then run the full pipeline:
 
 ```bash
-./run_all.sh
+./run_full_pipeline.sh
 ```
 ---
 
@@ -67,17 +67,11 @@ conda install -c conda-forge fenics-dolfinx
 pip install -r data_generation/requirements.txt
 ```
 
-In `data_generation/configs/elastic_params.yaml`, we provide real cell images at `img_paths` and segmentation masks at `masks_paths`. These are used as an initial position of a cell that will be deformed using the Finite Elements Methods. The images used in our case are t000 and t066 form the folder 01 and their associated segmentation mask in the Cell Tracking Challenge dataset `Glioblastoma-astrocytoma U373 cells on a polyacrylamide substrate` provided by Dr S. Kumar., Department of Bioengineering, University of California at Berkeley, Berkeley CA (USA). 
+In `data_generation/configs/elastic_params.yaml`, we provide real cell images at `img_paths` and segmentation masks at `masks_paths`. These are used as an initial position of a cell that will be deformed using the Finite Elements Methods. The images used in our case are t000 and t066 form the folder 01 and their associated segmentation masks in the Cell Tracking Challenge dataset `Glioblastoma-astrocytoma U373 cells on a polyacrylamide substrate` provided by Dr S. Kumar., Department of Bioengineering, University of California at Berkeley, Berkeley CA (USA). 
 
 ### Elastic experiments
 
 We fix mechanical parameters `T`, `E`, `ν` on a synthetic image. 
-
-<p align="center">
-  <img src="docs/parameters.png" width="600" alt="Description"/>
-</p>
-
-
 Three experiments are available, each varying one mechanical parameter while keeping the others fixed:
 
 | Experiment | Variable | Fixed parameters | YAML keys |
