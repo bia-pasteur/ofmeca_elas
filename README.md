@@ -71,7 +71,7 @@ In `data_generation/configs/elastic_params.yaml`, we provide real cell images at
 
 ### Elastic experiments
 
-We fix mechanical parameters `T`, `E`, `ν` on a synthetic image. 
+We fix mechanical parameters `T`, `E`, `ν` on a synthetic image.
 Three experiments are available, each varying one mechanical parameter while keeping the others fixed:
 
 | Experiment | Variable | Fixed parameters | YAML keys |
