@@ -1,27 +1,27 @@
 micro_exp:
-  of_funcs: [fista, hs]
+  of_funcs: [fista, ilk, tvl1]
 
   # Image 1
-  # im: 1
-  # path: "/Users/josephinelahmani/Desktop/ofmeca/data/micro_images/250213_Overnight 50Hz 25Vpp_pos2.tif"
-  # vminpositions: 0.3
-  # vmaxpositions: 0.7
-  # qt: True
-  # alphapositions: 0.3
-  # active_contour: True
-  # scale_flow: 0.3
-  # scale_traction: 6.0 
+  im: 1
+  path: "/Users/josephinelahmani/Desktop/ofmeca/data/micro_images/250213_Overnight 50Hz 25Vpp_pos2.tif"
+  vminpositions: 0.3
+  vmaxpositions: 0.7
+  qt: True
+  alphapositions: 0.3
+  active_contour: True
+  scale_flow: 0.3
+  scale_traction: 6.0 
 
   # Image 2:
-  im: 2
-  path: "/Users/josephinelahmani/Desktop/ofmeca/data/micro_images/250225_WT_1p2CD100RGD_FastAcq_pos1.tif" 
-  vminpositions: null
-  vmaxpositions: null
-  qt: False
-  alphapositions: 0.5
-  active_contour: False
-  scale_flow: 0.5
-  scale_traction: 11.0
+  # im: 2
+  # path: "/Users/josephinelahmani/Desktop/ofmeca/data/micro_images/250225_WT_1p2CD100RGD_FastAcq_pos1.tif" 
+  # vminpositions: null
+  # vmaxpositions: null
+  # qt: False
+  # alphapositions: 0.5
+  # active_contour: False
+  # scale_flow: 0.5
+  # scale_traction: 11.0
 
   center_circle_seg: [120, 120]
   radius_circle_seg: 100

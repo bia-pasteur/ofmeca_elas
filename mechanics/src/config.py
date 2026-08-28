@@ -1,29 +1,39 @@
-""" Configuration of the analysis"""
+"""Configuration of the analysis"""
 # pylint disable=invalid-name
 
 from dataclasses import dataclass
-from typing import List, Union
+
+import numpy as np
+
 
 @dataclass
 class GeneralParams:
     """General parameters of the analysis"""
+
     results_dir: str
+    include_wofv: bool
+
 
 @dataclass
 class FistaParams:
     """FISTA parameters"""
+
     num_iter: int
     num_warp: int
-    alpha: float
-    beta: float
+    alpha: float | np.ndarray
+    beta: float | np.ndarray
     eps: float
     num_pyramid: int
     pyramid_downscale: float
     pyramid_min_size: int
+    mask: np.ndarray | None = None
+    outside_multiplier: float = 10.0
+
 
 @dataclass
 class HSParams:
     """Horn Schunck parameters"""
+
     num_iter: int
     num_warp: int
     alpha: float
@@ -33,10 +43,11 @@ class HSParams:
     pyramid_min_size: int
     w: float
 
+
 @dataclass
 class FarnebackParams:
-    """Farneback parameters
-    """
+    """Farneback parameters"""
+
     winSize: int
     pyrScale: float
     numLevels: int
@@ -46,10 +57,11 @@ class FarnebackParams:
     polySigma: float
     flags: int
 
+
 @dataclass
 class TVL1Params:
-    """TV-L1 parameters
-    """
+    """TV-L1 parameters"""
+
     attachment: float
     tightness: float
     num_warp: int
@@ -57,85 +69,109 @@ class TVL1Params:
     tol: float
     prefilter: bool
 
+
 @dataclass
 class ILKParams:
-    """ILK parameters
-    """
+    """ILK parameters"""
+
     radius: float
     num_warp: int
     gaussian: bool
     prefilter: bool
-    
+
+
+@dataclass
+class PIVParams:
+    """PIV parameters"""
+
+    window_size: int
+    overlap: int
+    search_area: int
+    s2n_thresh: float
+    method: str
+
+
 @dataclass
 class OpticalFlowParams:
     """Optical Flow parameters"""
+
     global_flow: bool
     fista: FistaParams
     hs: HSParams
     farneback: FarnebackParams
     tvl1: TVL1Params
     ilk: ILKParams
-    
+    piv: PIVParams
+
+
 @dataclass
 class FistaParamsList:
     """FISTA parameters"""
-    num_iter: List[int]
-    num_warp: List[int]
-    alpha: List[float]
-    beta: List[float]
+
+    num_iter: list[int]
+    num_warp: list[int]
+    alpha: list[float]
+    beta: list[float]
     eps: float
     num_pyramid: int
     pyramid_downscale: float
     pyramid_min_size: int
 
+
 @dataclass
 class HSParamsList:
     """Horn Schunck parameters"""
-    num_iter: List[int]
-    num_warp: List[int]
-    alpha: List[float]
+
+    num_iter: list[int]
+    num_warp: list[int]
+    alpha: list[float]
     eps: float
     num_pyramid: int
     pyramid_downscale: float
     pyramid_min_size: int
     w: float
 
+
 @dataclass
 class FarnebackParamsList:
-    """Farneback parameters
-    """
-    winSize: List[int]
-    pyrScale: List[float]
-    numLevels: List[int]
+    """Farneback parameters"""
+
+    winSize: list[int]
+    pyrScale: list[float]
+    numLevels: list[int]
     fastPyramids: bool
-    numIters: List[int]
-    polyN: List[int]
-    polySigma: List[float]
+    numIters: list[int]
+    polyN: list[int]
+    polySigma: list[float]
     flags: int
+
 
 @dataclass
 class TVL1ParamsList:
-    """TV-L1 parameters
-    """
-    attachment: List[float]
-    tightness: List[float]
-    num_warp: List[int]
-    num_iter: List[int]
+    """TV-L1 parameters"""
+
+    attachment: list[float]
+    tightness: list[float]
+    num_warp: list[int]
+    num_iter: list[int]
     tol: float
     prefilter: bool
 
+
 @dataclass
 class ILKParamsList:
-    """ILK parameters
-    """
-    radius: List[float]
-    num_warp: List[int]
+    """ILK parameters"""
+
+    radius: list[float]
+    num_warp: list[int]
     gaussian: bool
     prefilter: bool
-    
+
+
 @dataclass
 class OpticalFlowParamsList:
     """Optical Flow parameters"""
+
     global_flow: bool
     fista_list: FistaParamsList
     hs_list: HSParamsList
@@ -143,11 +179,12 @@ class OpticalFlowParamsList:
     tvl1_list: TVL1ParamsList
     ilk_list: ILKParamsList
 
+
 @dataclass
 class ElasticExperiment:
-    """Configuration for an experiment on synthetic images of elastic cells
-    """
-    of_funcs: Union[List[str], str]
+    """Configuration for an experiment on synthetic images of elastic cells"""
+
+    of_funcs: list[str] | str
     vmaxstrain: float
     scale_flow: float
     step_flow: int
@@ -164,30 +201,33 @@ class ElasticExperiment:
     nu: float | None = None
     exp_ind: int | None = None
     image_id: str | None = None
-    implot : int | None = None
-    
+    implot: int | None = None
+
+
 @dataclass
 class RegExperiment:
-    """Configuration for the regularization testing experiment
-    """
-    of_funcs: Union[List[str], str]
+    """Configuration for the regularization testing experiment"""
+
+    of_funcs: list[str] | str
     T: float
     E: float
     nu: float
-    factors: List[float]
-    
+    factors: list[float]
+
+
 @dataclass
 class NoiseExperiment:
-    """Configuration for the noise experiment
-    """
-    of_funcs: Union[List[str], str]
+    """Configuration for the noise experiment"""
+
+    of_funcs: list[str] | str
+
 
 @dataclass
 class MicroExperiment:
-    """Configuration for an experiment on a microscopy image
-    """
+    """Configuration for an experiment on a microscopy image"""
+
     im: int
-    of_funcs: Union[List[str], str]
+    of_funcs: list[str] | str
     path: str
     active_contour: bool
     E: float
@@ -203,10 +243,10 @@ class MicroExperiment:
     alphapositions: float | None = None
     center_circle_seg: tuple[float, float] | None = None
     radius_circle_seg: float | None = None
-    alpha: List[float] | None = None
-    beta: List[float] | None = None
-    gamma: List[float] | None = None
-    
+    alpha: list[float] | None = None
+    beta: list[float] | None = None
+    gamma: list[float] | None = None
+
     def __post_init__(self):
         if isinstance(self.of_funcs, str):
             self.of_funcs = [self.of_funcs]

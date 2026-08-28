@@ -1,19 +1,19 @@
 elastic_exp:
-  of_funcs: [fista, hs, farneback, ilk, tvl1]
-  T: null
-  E: null
-  nu: null
+  of_funcs: [fista, hs, farneback, tvl1, ilk]
+  T: null #100
+  E: null #500
+  nu: null #0.3
   exp_ind: null
   image_id: null
-  implot: 10
-  vmaxstrain: 0.15
+  implot: 3
+  vmaxstrain: 0.3
   scale_flow: 0.7
   step_flow: 5
   scale_traction: 4
   step_traction: 1
   T_for_plot: 100
-  E_for_plot: 1000
-  nu_for_plot: 0.3
+  E_for_plot: 500
+  nu_for_plot: 0.45
   threshold_inf: 0
-  threshold_sup: 150
+  threshold_sup: 120
   scatter_comparison: True

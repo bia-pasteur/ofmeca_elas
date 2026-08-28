@@ -1,14 +1,18 @@
 """Some utils functions"""
-#pylint: disable=invalid-name
-#pylint: disable=trailing-whitespace
-from pathlib import Path
+
+# pylint: disable=invalid-name
+# pylint: disable=trailing-whitespace
 import os
 import re
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
-import numpy as np 
-import tifffile 
 import skimage
+import tifffile
+from scipy.io import loadmat
 from shapely import Polygon, contains_xy
+
 from mechanics.src.optical_flow.algorithms import fista, warp
 
 
@@ -78,7 +82,7 @@ def extract_nu_from_folder(folder_name: str) -> float:
     return float(match.group(1))
 
 
-def find_experiment_folder(base_path: Path, T: float, E: float, nu: float)  -> Path:
+def find_experiment_folder(base_path: Path, T: float, E: float, nu: float) -> Path:
     """
     Searches recursively for an experiment folder matching the parameters T, E, and ν.
 
@@ -112,9 +116,13 @@ def find_experiment_folder(base_path: Path, T: float, E: float, nu: float)  -> P
                 t_val = extract_T_from_folder(folder.name)
                 e_val = extract_E_from_folder(folder.name)
                 nu_val = extract_nu_from_folder(folder.name)
-                if np.isclose(t_val, T) and np.isclose(e_val, E) and np.isclose(nu_val, nu):
+                if (
+                    np.isclose(t_val, T)
+                    and np.isclose(e_val, E)
+                    and np.isclose(nu_val, nu)
+                ):
                     return folder
-    raise FileNotFoundError(f"No folder found for T={T}, E={E}")
+    raise FileNotFoundError(f"No folder found for T={T}, E={E}, nu={nu}")
 
 
 def extract_std_from_file(file_name: str) -> float:
@@ -159,59 +167,102 @@ def get_all_stds_from_folder(folder_path: str) -> list[float]:
             stds.append(std)
     return sorted(stds)
 
+
 def load_images_and_displacements(
-    exp_folder: Path, 
-    mode: str = "original"
-) -> tuple[list[np.ndarray], list[np.ndarray]]:
-    """
-    Loads image sequences and corresponding displacement fields from an experiment folder.
-
-    Args:
-        exp_folder (str or Path):
-            Path to the folder containing `.npy` image and displacement files.
-        mode (str, optional):
-            Loading mode. Options:
-              - `'original'`: loads original images (`*_img.npy`) and displacements (`*_ugt.npy`).
-              - `'noisy'`: loads noisy versions (`std_*_img.npy`, `std_*_ugt.npy`).
-            Defaults to `'original'`.
-
-    Returns:
-        tuple[list[np.ndarray], list[np.ndarray]]:
-            - `images`: List of image arrays.
-            - `displacements`: List of displacement field arrays.
-
-    Raises:
-        ValueError:
-            If `mode` is not `'original'` or `'noisy'`.
-    """
+    exp_folder: Path,
+    mode: str = "original",
+    load_wofv: bool = False,
+) -> tuple[
+    list[np.ndarray],
+    list[np.ndarray],
+    list[np.ndarray] | None,
+]:
     exp_folder = Path(exp_folder)
 
     if mode == "original":
         img_files = sorted(
-            exp_folder.glob("*_img.npy"),
-            key=lambda f: int(re.match(r"(\d+)_img\.npy", f.name).group(1)) if re.match(r"(\d+)_img\.npy", f.name) else -1
+            exp_folder.rglob("*_img.npy"),
+            # key=lambda f: (
+            #     int(re.match(r"(\d+)_img\.npy", f.name).group(1))
+            #     if re.match(r"(\d+)_img\.npy", f.name)
+            #     else -1
+            # ),
         )
         disp_files = sorted(
-            exp_folder.glob("*_ugt.npy"),
-            key=lambda f: int(re.match(r"(\d+)_ugt\.npy", f.name).group(1)) if re.match(r"(\d+)_ugt\.npy", f.name) else -1
+            exp_folder.rglob("*_ugt.npy"),
+            # key=lambda f: (
+            #     int(re.match(r"(\d+)_ugt\.npy", f.name).group(1))
+            #     if re.match(r"(\d+)_ugt\.npy", f.name)
+            #     else -1
+            # ),
+        )
+        wofv_files = sorted(
+            exp_folder.rglob("*_wofv.mat"),
+            # key=lambda f: (
+            #     int(re.match(r"(\d+)_wofv\.mat", f.name).group(1))
+            #     if re.match(r"(\d+)_wofv\.mat", f.name)
+            #     else -1
+            # ),
         )
 
     elif mode == "noisy":
         img_files = sorted(
-            [f for f in exp_folder.glob("std_*_img.npy")],
-            key=lambda f: float(re.search(r"std_(\d+p?\d*)_img\.npy", f.name).group(1).replace("p", "."))
+            exp_folder.rglob("std_*_img.npy"),
         )
+        #     [f for f in exp_folder.glob("std_*_img.npy")],
+        #     key=lambda f: float(
+        #         re.search(r"std_(\d+p?\d*)_img\.npy", f.name).group(1).replace("p", ".")
+        #     ),
+        # )
         disp_files = sorted(
-            [f for f in exp_folder.glob("std_*_ugt.npy")],
-            key=lambda f: float(re.search(r"std_(\d+p?\d*)_ugt\.npy", f.name).group(1).replace("p", "."))
+            exp_folder.rglob("std_*_ugt.npy"),
         )
+        #     [f for f in exp_folder.glob("std_*_ugt.npy")],
+        #     key=lambda f: float(
+        #         re.search(r"std_(\d+p?\d*)_ugt\.npy", f.name).group(1).replace("p", ".")
+        #     ),
+        # )
+        wofv_files = sorted(
+            exp_folder.rglob("std_*_wofv.mat"),
+            # key=lambda f: (
+            #     int(re.match(r"(\d+)_wofv\.mat", f.name).group(1))
+            #     if re.match(r"(\d+)_wofv\.mat", f.name)
+            #     else -1
+            # ),
+        )
+
     else:
         raise ValueError("mode must be either 'original' or 'noisy'")
 
     images = [np.load(f) for f in img_files]
     displacements = [np.load(f) for f in disp_files]
 
-    return images, displacements
+    wofv_displacements = None
+
+    if load_wofv:
+        if len(wofv_files) != len(images):
+            raise ValueError(
+                "Number of WO-FV files does not match the number of images: "
+                f"{len(wofv_files)} WO-FV files vs {len(images)} images."
+            )
+
+        wofv_displacements = [load_clean_wofv_displacement(f) for f in wofv_files]
+
+    return images, displacements, wofv_displacements
+
+
+def load_clean_wofv_displacement(file):
+    mat_data = loadmat(file)
+    u_wofv = np.nan_to_num(mat_data["u_original"], nan=0.0)
+    v_wofv = np.nan_to_num(mat_data["v_original"], nan=0.0)
+    u_wofv = np.pad(u_wofv, ((0, 1), (0, 1)), mode="constant")
+    v_wofv = np.pad(v_wofv, ((0, 1), (0, 1)), mode="constant")
+    h_wofv = np.zeros((2, 1, *u_wofv.shape), dtype=u_wofv.dtype)
+
+    h_wofv[1, 0] = u_wofv
+    h_wofv[0, 0] = v_wofv
+
+    return h_wofv
 
 
 def compute_lame(E, nu):
@@ -229,7 +280,7 @@ def compute_lame(E, nu):
             - `mu_e` (float): Shear modulus (μ).
             - `lambda_e` (float): First Lamé parameter (λ).
     """
-    lambda_e = E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+    lambda_e = E * nu / ((1.0 + nu) * (1.0 - (nu**2)))
     mu_e = E / (2.0 * (1.0 + nu))
     return mu_e, lambda_e
 
@@ -249,8 +300,9 @@ def rmse(u: np.ndarray, h: np.ndarray) -> float:
             The root mean square error value between `u` and `h`.
     """
     diff = u - h
-    mse = np.mean(diff ** 2) 
+    mse = np.mean(diff**2)
     return np.sqrt(mse)
+
 
 def results_to_df(results: dict | list[dict]) -> pd.DataFrame:
     """
@@ -278,45 +330,75 @@ def results_to_df(results: dict | list[dict]) -> pd.DataFrame:
         "farneback": "Farneback",
         "tv_l1": "TV-L1",
         "ilk": "ILK",
+        "piv_algo": "PIV",
+        "wofv": "wOFV",
     }
-    
-    desired_order = ["Proposed", "HS", "Farneback", "TV-L1", "ILK"]
-    
+
+    desired_order = ["Proposed", "HS", "Farneback", "TV-L1", "ILK", "PIV", "wOFV"]
+
     if isinstance(results, dict):
         results = [results]
 
     tables = []
     for res in results:
         if "mean_rmse_disp" in res:
-            df = pd.DataFrame({
-                "RMSE displacement": res["mean_rmse_disp"],
-                "RMSE strain": res["mean_rmse_strain"],
-                "RMSE deformation": res["mean_rmse_def"],
-                "RMSE stress": res["mean_rmse_stress"],
-                "RMSE traction force": res["mean_rmse_traction"],
-                "runtime": res["mean_runtime"],
-                "std RMSE displacement": res["std_rmse_disp"],
-                "std RMSE strain": res["std_rmse_strain"],
-                "std RMSE deformation": res["std_rmse_def"],
-                "std RMSE stress": res["std_rmse_stress"],
-                "std RMSE traction force": res["std_rmse_traction"],
-                "std runtime": res["std_runtime"]
-            })
+            df = pd.DataFrame(
+                {
+                    "RMSE displacement": res["mean_rmse_disp"],
+                    "RMSE strain": res["mean_rmse_strain"],
+                    "RMSE deformation": res["mean_rmse_def"],
+                    "RMSE stress": res["mean_rmse_stress"],
+                    "RMSE traction force": res["mean_rmse_traction"],
+                    "runtime": res["mean_runtime"],
+                    "std RMSE displacement": res["std_rmse_disp"],
+                    "std RMSE strain": res["std_rmse_strain"],
+                    "std RMSE deformation": res["std_rmse_def"],
+                    "std RMSE stress": res["std_rmse_stress"],
+                    "std RMSE traction force": res["std_rmse_traction"],
+                    "std runtime": res["std_runtime"],
+                }
+            )
             df.index = [name_map.get(k, k) for k in df.index]
-            df = df[["RMSE displacement", "RMSE strain", "RMSE deformation", "RMSE stress", "RMSE traction force", "runtime", "std RMSE displacement", "std RMSE strain", "std RMSE deformation", "std RMSE stress", "std RMSE traction force", "std runtime"]]
+            df = df[
+                [
+                    "RMSE displacement",
+                    "RMSE strain",
+                    "RMSE deformation",
+                    "RMSE stress",
+                    "RMSE traction force",
+                    "runtime",
+                    "std RMSE displacement",
+                    "std RMSE strain",
+                    "std RMSE deformation",
+                    "std RMSE stress",
+                    "std RMSE traction force",
+                    "std runtime",
+                ]
+            ]
             tables.append(df)
-        else : 
-            df = pd.DataFrame({
-                "RMSE displacement": res[0]["rmse_flows"],
-                "RMSE strain": res[0]["rmse_strain"],
-                "RMSE deformation": res[0]["rmse_def"],
-                "RMSE stress": res[0]["rmse_stress"],
-                "RMSE traction force": res[0]["rmse_traction"],
-                "runtime": res[0]["runtime"]
-            })
+        else:
+            df = pd.DataFrame(
+                {
+                    "RMSE displacement": res[0]["rmse_flows"],
+                    "RMSE strain": res[0]["rmse_strain"],
+                    "RMSE deformation": res[0]["rmse_def"],
+                    "RMSE stress": res[0]["rmse_stress"],
+                    "RMSE traction force": res[0]["rmse_traction"],
+                    "runtime": res[0]["runtime"],
+                }
+            )
             df.index = [name_map.get(k, k) for k in df.index]
 
-            df = df[["RMSE displacement", "RMSE strain", "RMSE deformation", "RMSE stress", "RMSE traction force", "runtime"]]
+            df = df[
+                [
+                    "RMSE displacement",
+                    "RMSE strain",
+                    "RMSE deformation",
+                    "RMSE stress",
+                    "RMSE traction force",
+                    "runtime",
+                ]
+            ]
             tables.append(df)
 
     df_mean = pd.concat(tables).groupby(level=0).mean().round(4)
@@ -339,44 +421,52 @@ def load_order_clean(image_path):
     # Store the name of the image for the plots
     image_name = os.path.basename(image_path)
     image_name_without_ext = os.path.splitext(image_name)[0]
-    
+
     # Load the TIFF image
     with tifffile.TiffFile(image_path) as tif:
         image = tif.series[0].asarray()  # Read the image array
-        
+
         # Check the axes order
         axes = tif.series[0].axes
-        
+
         # The expected order is TZYXC
-        expected_axes = ['T', 'Z', 'Y', 'X', 'C']
-        
-        if 'C' not in axes:
+        expected_axes = ["T", "Z", "Y", "X", "C"]
+
+        if "C" not in axes:
             image = image[..., np.newaxis]  # Add C as the last axis
-            axes += 'C'
-        
-        if 'Z' not in axes:
+            axes += "C"
+
+        if "Z" not in axes:
             # Insert a singleton Z-dimension before Y
-            y_index = axes.find('Y')
+            y_index = axes.find("Y")
             image = np.expand_dims(image, axis=y_index)
-            axes = axes[:y_index] + 'Z' + axes[y_index:]
-        
+            axes = axes[:y_index] + "Z" + axes[y_index:]
+
         if axes != expected_axes:
             # Swap axes based on the current axes order
             axis_order = {axis: idx for idx, axis in enumerate(axes)}
-            
+
             # Create a mapping of the current axes to the target axes
             swap_order = [axis_order[axis] for axis in expected_axes]
-            
+
             # Swap the axes to match TZYXC
             image = np.transpose(image, swap_order)
-    
-    # Normalize the image        
-    image = image/image.max()
-    
+
+    # Normalize the image
+    image = image / image.max()
+
     return image, image_name_without_ext
 
 
-def generate_mask_on_micro_image(image: np.ndarray, active_contour: bool, center: tuple[float, float] = None, radius: float = None, alpha: float = None, beta: float = None, gamma: float = None):
+def generate_mask_on_micro_image(
+    image: np.ndarray,
+    active_contour: bool,
+    center: tuple[float, float] | None = None,
+    radius: float | None = None,
+    alpha: float | None = None,
+    beta: float | None = None,
+    gamma: float | None = None,
+):
     """
     Creates a mask on the cell in the image
 
@@ -392,119 +482,136 @@ def generate_mask_on_micro_image(image: np.ndarray, active_contour: bool, center
     Returns:
         np.ndarray: The mask of the cell
     """
-    
-    if active_contour: 
-        radians = np.linspace(0, 2*np.pi, 200)
-        r = center[0] + radius*np.sin(radians)
-        c = center[1] + radius*np.cos(radians)
-        
+
+    if active_contour:
+        radians = np.linspace(0, 2 * np.pi, 200)
+        r = center[0] + radius * np.sin(radians)
+        c = center[1] + radius * np.cos(radians)
+
         init = (np.array([r, c]).T)[:-1]
 
-        snake = skimage.segmentation.active_contour(image, init, alpha=alpha, beta=beta, gamma=gamma)
+        snake = skimage.segmentation.active_contour(
+            image, init, alpha=alpha, beta=beta, gamma=gamma
+        )
         coords = list(zip(snake[:, 1], snake[:, 0]))
         polygon = Polygon(coords)
 
-        x_coords = np.linspace(0, image.shape[1]-1, num=image.shape[1]-1)
-        y_coords = np.linspace(0, image.shape[0]-1, num=image.shape[0]-1)
+        x_coords = np.linspace(0, image.shape[1] - 1, num=image.shape[1] - 1)
+        y_coords = np.linspace(0, image.shape[0] - 1, num=image.shape[0] - 1)
 
         mask_ = np.zeros_like(image)
 
         for x in x_coords:
             for y in y_coords:
                 mask_[int(y), int(x)] = contains_xy(polygon, x, y)
-        
-    else: 
+
+    else:
         mask = image > 0.2
         mask__ = skimage.morphology.remove_small_objects(mask, 100)
         mask_ = skimage.morphology.remove_small_holes(mask__, 100)
-        
+
     return mask_
 
 
 def morozov(
     image: np.ndarray,
-    num_iter_of: int, 
+    num_iter_of: int,
     num_warp_of: int,
-    num_pyramid_of: int, 
+    num_pyramid_of: int,
     pyramid_downscale_of: float,
-    homogeneous_patches: np.ndarray, 
-    alpha_init: float, 
-    step_size: float = 0.01, 
-    max_iter: int = 100, 
-    tol: float = 1e-6, 
-    c: float = 0.1) -> tuple[np.ndarray, float, float]: 
-    """ 
-    Apply Morozov's discrepancy principle to estimate optimal regularization parameters for image registration. 
-    The regularization parameters are supposed to scale linearly to one another. 
-    Args: 
+    homogeneous_patches: np.ndarray,
+    alpha_init: float,
+    step_size: float = 0.01,
+    max_iter: int = 100,
+    tol: float = 1e-6,
+    c: float = 0.1,
+) -> tuple[np.ndarray, float, float]:
+    """
+    Apply Morozov's discrepancy principle to estimate optimal regularization parameters for image registration.
+    The regularization parameters are supposed to scale linearly to one another.
+    Args:
         image (np.ndarray): The image. image[0] is the reference image (fixed), image[1] is the image to be registered (moving)
         num_iter_of (int): The number of iteration to perform in the optical flow algorithm
         num_warp_of (int): The number of warp to perform in the optical flow algorithm
         num_pyramid_of (int): The number of pyramids to create in the multi-scale approach of the optical flow algorihtm
         pyramid_downscale_of (float): Image scale between pyramid levels.
-        homogeneous_patches (np.ndarray): Array of homogeneous patches for noise estimation. 
-        step_size (float): Step size for updating alpha. 
-        Default: 0.01. 
-        max_iter (int): Maximum number of iterations. Default: 100. 
-        tol (float): Tolerance for stopping criterion. Default: 1e-6. 
-        c (float): Constant to relate beta to alpha (beta = c * alpha). Default: 0.1. 
-        
-    Returns: 
-        tuple[np.ndarray, float, float]: 
-        - u (np.ndarray): Estimated displacement field. 
-        - alpha (float): Optimal regularization parameter for the gradient term. 
-        - beta (float): Optimal regularization parameter for the Hessian term. 
-        """ 
-    
+        homogeneous_patches (np.ndarray): Array of homogeneous patches for noise estimation.
+        step_size (float): Step size for updating alpha.
+        Default: 0.01.
+        max_iter (int): Maximum number of iterations. Default: 100.
+        tol (float): Tolerance for stopping criterion. Default: 1e-6.
+        c (float): Constant to relate beta to alpha (beta = c * alpha). Default: 0.1.
+
+    Returns:
+        tuple[np.ndarray, float, float]:
+        - u (np.ndarray): Estimated displacement field.
+        - alpha (float): Optimal regularization parameter for the gradient term.
+        - beta (float): Optimal regularization parameter for the Hessian term.
+    """
+
     img1 = image[0]
     img2 = image[1]
-    
-    # Estimate the standard deviation of the noise 
-    noise_std = np.std(homogeneous_patches) 
-    discrepancy = noise_std**2 * img1.size 
-    
-    print('discrepancy', discrepancy)
-    
-    # Initialize parameters 
+
+    # Estimate the standard deviation of the noise
+    noise_std = np.std(homogeneous_patches)
+    discrepancy = noise_std**2 * img1.size
+
+    print("discrepancy", discrepancy)
+
+    # Initialize parameters
     alpha = alpha_init
     beta = c * alpha_init
-    
-    for _ in range(max_iter): 
-        # Solve for displacement field using FISTA 
-        u = fista(img1, img2, alpha, beta, num_iter=num_iter_of, num_warp=num_warp_of, num_pyramid=num_pyramid_of, pyramid_downscale=pyramid_downscale_of)
+
+    for _ in range(max_iter):
+        # Solve for displacement field using FISTA
+        u = fista(
+            img1,
+            img2,
+            alpha,
+            beta,
+            num_iter=num_iter_of,
+            num_warp=num_warp_of,
+            num_pyramid=num_pyramid_of,
+            pyramid_downscale=pyramid_downscale_of,
+        )
         img2_warped = warp(img2, u)
-        
-        # Compute data term (discrepancy) 
-        data_term = np.linalg.norm(img1 - img2_warped)**2 
-        print('data term', data_term)
-        print('abs diff', abs(data_term - discrepancy))
+
+        # Compute data term (discrepancy)
+        data_term = np.linalg.norm(img1 - img2_warped) ** 2
+        print("data term", data_term)
+        print("abs diff", abs(data_term - discrepancy))
         # import matplotlib.pyplot as plt
         # plt.imshow(img1-img2_warped)
         # plt.colorbar()
         # plt.show()
-        # Check Morozov's discrepancy principle 
-        if abs(data_term - discrepancy) < tol: 
-            break 
-        # Update alpha 
-        if data_term > discrepancy: 
-            alpha += step_size 
-        else: 
-            alpha -= step_size 
-            
-        # Deduce beta 
-        beta = c * alpha 
+        # Check Morozov's discrepancy principle
+        if abs(data_term - discrepancy) < tol:
+            break
+        # Update alpha
+        if data_term > discrepancy:
+            alpha += step_size
+        else:
+            alpha -= step_size
+
+        # Deduce beta
+        beta = c * alpha
         print(alpha, beta)
-        
+
     return u, alpha, beta
 
 
-def remap(image:np.ndarray, vmin:float=None, vmax:float=None, qt:bool=False):
+def remap(
+    image: np.ndarray,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    qt: bool = False,
+):
     """
-    Remaps the value of an image between 0 and 1. 
-    If vmin and vmax are None and qt is True, uses the 1% quantile of the image for 0 and the 99% in the image for 1. 
-    If vmin and vmax are None and qt is False, uses the minimum of the image for 0 and the maximum of the image for 1. 
-    If vmin and vmax are not None, maps vmin at 0 and vmax at 1. 
-    
+    Remaps the value of an image between 0 and 1.
+    If vmin and vmax are None and qt is True, uses the 1% quantile of the image for 0 and the 99% in the image for 1.
+    If vmin and vmax are None and qt is False, uses the minimum of the image for 0 and the maximum of the image for 1.
+    If vmin and vmax are not None, maps vmin at 0 and vmax at 1.
+
     Args:
         image (np.ndarray): The image
         vmin (float, optional): The value in the image to be mapped at 0. Defaults to None.
@@ -514,15 +621,15 @@ def remap(image:np.ndarray, vmin:float=None, vmax:float=None, qt:bool=False):
     Returns:
         np.ndarray: The new image with values between 0 and 1
     """
-    
+
     if vmin is None or vmax is None:
         if qt:
             q1, q2 = np.quantile(image, q=[0.01, 0.99])
         else:
             q1, q2 = image.min(), image.max()
-        if vmin is None: 
+        if vmin is None:
             vmin = q1
-        if vmax is None: 
+        if vmax is None:
             vmax = q2
-    
-    return np.clip((image - vmin)/(vmax-vmin), 0, 1)
+
+    return np.clip((image - vmin) / (vmax - vmin), 0, 1)

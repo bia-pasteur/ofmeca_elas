@@ -2,7 +2,9 @@
 # pylint: disable=line-too-long
 # pylint: disable=trailing-whitespace
 
-from typing import Any, Union, Sequence
+from collections.abc import Sequence
+from typing import Any
+
 import numpy as np
 from scipy.ndimage import distance_transform_edt
 from scipy.signal import unit_impulse
@@ -11,8 +13,8 @@ from scipy.signal import unit_impulse
 def parse_spacing(
     f_shape: tuple[int, ...],
     axes: tuple[int, ...],
-    *varargs: Union[float, Sequence[float], np.ndarray]
-) -> list[Union[float, np.ndarray]]:
+    *varargs: float | Sequence[float] | np.ndarray,
+) -> list[float | np.ndarray]:
     """
     Parse spacing arguments for gradient calculation.
 
@@ -43,8 +45,10 @@ def parse_spacing(
 
     dx = (
         [1.0] * len_axes
-        if n == 0 else list(varargs) * len_axes
-        if n == 1 else list(varargs)
+        if n == 0
+        else list(varargs) * len_axes
+        if n == 1
+        else list(varargs)
     )
 
     for i, d in enumerate(dx):
@@ -57,8 +61,7 @@ def parse_spacing(
                 raise ValueError("1D spacing must match axis length")
 
             diffx = np.diff(
-                arr.astype(np.float64)
-                if np.issubdtype(arr.dtype, np.integer) else arr
+                arr.astype(np.float64) if np.issubdtype(arr.dtype, np.integer) else arr
             )
             dx[i] = diffx[0] if np.allclose(diffx, diffx[0]) else diffx
         else:
@@ -73,7 +76,7 @@ def apply_neumann_bc(
     mask: np.ndarray,
     boundary_coords: np.ndarray,
     dx: list[float],
-    axes: tuple[int, ...]
+    axes: tuple[int, ...],
 ) -> None:
     """
     Apply Neumann boundary conditions by estimating one-sided differences.
@@ -111,9 +114,9 @@ def apply_neumann_bc(
 def grad_domain(
     f: np.ndarray,
     mask: np.ndarray,
-    *varargs: Union[float, Sequence[float], np.ndarray],
+    *varargs: float | Sequence[float] | np.ndarray,
     axis: Any = None,
-    boundary_condition: str = "Neumann"
+    boundary_condition: str = "Neumann",
 ) -> np.ndarray:
     """
     Computes the masked gradient of an N-dimensional array `f`
@@ -162,52 +165,50 @@ def grad_domain(
 
 
 def jacobian_mask(
-    u: np.ndarray,
-    spacing: Sequence[float],
-    maskcell: np.ndarray
+    u: np.ndarray, spacing: Sequence[float], maskcell: np.ndarray
 ) -> np.ndarray:
     """
-    Computes the Jacobian of the displacement field 
-    
-    Args: 
+    Computes the Jacobian of the displacement field
+
+    Args:
         u (np.ndarray): The displacement field
             Shape : (d, T, *S)
-    
-    Returns: 
+
+    Returns:
         np.ndarray: The Jacobian of the displacement field
             Shape : (d, d, T, *S)
     """
-    
+
     dim = u.shape[0]
     jac = np.zeros((dim,) + u.shape)
-    
+
     for i in range(dim):
         for j in range(dim):
             if u[i].ndim == maskcell.ndim + 1:
                 mask = np.broadcast_to(maskcell, u[i].shape)
             else:
                 mask = maskcell
-            jac[i, j] = jac[i, j] = grad_domain(u[i], mask, spacing[j], axis=j+1, boundary_condition="Dirichlet")
+            jac[i, j] = jac[i, j] = grad_domain(
+                u[i], mask, spacing[j], axis=j + 1, boundary_condition="Neumann"
+            )
     return jac
 
 
 def strain_mask(
-    u: np.ndarray,
-    spacing: Sequence[float],
-    maskcell: np.ndarray
+    u: np.ndarray, spacing: Sequence[float], maskcell: np.ndarray
 ) -> np.ndarray:
-    """ 
+    """
     Computes the strain of the displacement field
-    
-    Args: 
+
+    Args:
         u (np.ndarray): The displacement field
             Shape: (d, T, *S)
-    
-    Returns: 
+
+    Returns:
         np.ndarray: The strain of the displacement field
             Shape: (d, d, T, *S)
     """
-    
+
     jac = jacobian_mask(u, spacing, maskcell)
 
     return 0.5 * (jac + np.swapaxes(jac, 0, 1))
@@ -219,26 +220,22 @@ def deformation(eps: np.ndarray) -> np.ndarray:
 
     Args:
         u (np.ndarray): The vector field
-    
+
     Returns:
         np.ndarray: the norm of the strain tensor at every pixel
     """
-    
+
     # Return the norm of the strain tensor
-    return(np.linalg.norm(eps, axis=(0,1)))
+    return np.linalg.norm(eps, axis=(0, 1))
 
 
-def stress_mask(
-    eps: np.ndarray,
-    mu: float,
-    lambda_: float
-) -> np.ndarray:
+def stress_mask(eps: np.ndarray, mu: float, lambda_: float) -> np.ndarray:
     """
-    Computes the stress of the displacement field 
+    Computes the stress of the displacement field
 
     Args:
         u (np.ndarray): The displacement field
-            Shape: (d, T, *S) 
+            Shape: (d, T, *S)
         mu (float): Lamé parameter
         lambda_ (float): Lamé parameter
 
@@ -246,53 +243,51 @@ def stress_mask(
         np.ndarray: the stress of the displacement field
             Shape: (d, d, T, *S)
     """
-    
+
     dim = eps.shape[0]
     tr = np.trace(eps, axis1=0, axis2=1)
     s = np.zeros_like(eps)
-    
+
     for ax1 in range(dim):
         for ax2 in range(dim):
-            s[ax1,ax2] = 2 * mu * eps[ax1,ax2] + lambda_ * tr * (ax1==ax2)
+            s[ax1, ax2] = 2 * mu * eps[ax1, ax2] + lambda_ * tr * (ax1 == ax2)
     return s
+
 
 def compute_normals_from_mask_2d(mask: np.ndarray) -> np.ndarray:
     """
     Compute outward normal vectors to a binary 2D mask using the gradient.
-    
+
     Args:
         mask (np.ndarray): Binary mask (Y, X) where 1 indicates the boundary zone.
-    
+
     Returns:
         normals (np.ndarray): Array of normal vectors of shape (2, Y, X), normalized to unit length.
     """
     gy, gx = np.gradient(mask.astype(float))
-    norm = np.sqrt(gx**2 + gy**2) 
-    nx = gx / (norm+1e-12)
-    ny = gy / (norm+1e-12)
+    norm = np.sqrt(gx**2 + gy**2)
+    nx = gx / (norm + 1e-12)
+    ny = gy / (norm + 1e-12)
 
     normals = np.stack((ny, nx), axis=0)
     return normals
 
 
-def compute_traction_2d(
-    stress_field: np.ndarray,
-    normals: np.ndarray
-) -> np.ndarray:
+def compute_traction_2d(stress_field: np.ndarray, normals: np.ndarray) -> np.ndarray:
     """
     Compute traction t = sigma · n in 2D for a single timepoint.
-    
+
     Args:
         stress_field (np.ndarray): Stress tensor field, shape (2, 2, Y, X)
         normals (np.ndarray): Normal vectors, shape (2, Y, X)
-    
+
     Returns:
         traction (np.ndarray): Traction vector field, shape (2, Y, X)
     """
     d, _, Y, X = stress_field.shape
     traction = np.zeros((d, Y, X))
 
-    for i in range(d): 
+    for i in range(d):
         for j in range(d):
             traction[i] += stress_field[i, j] * normals[j]
 
