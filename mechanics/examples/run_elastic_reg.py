@@ -13,7 +13,7 @@ from mechanics.src.config import GeneralParams, OpticalFlowParams, RegExperiment
 from mechanics.src.meca_of_pipeline import compute_of_strain_traction
 from mechanics.src.optical_flow.algorithms import farneback, fista_of, hs_of, ilk, tv_l1
 from mechanics.src.plot_functions import plot_reg
-from mechanics.src.utils import compute_lame
+from mechanics.src.utils import compute_lame, load_clean_wofv_displacement
 
 
 def process_test_reg(
@@ -25,6 +25,7 @@ def process_test_reg(
     params_of: list[dict],
     global_flow: bool,
     factors_for_reg: list[float],
+    include_wofv: bool,
 ) -> dict:
     """
     Runs a regularization parameter sensitivity analysis for optical flow-based strain and traction estimation.
@@ -80,6 +81,11 @@ def process_test_reg(
     for _, method in enumerate(of_for_computation):
         method_names.append(method.__name__.replace("_of", ""))
 
+    if include_wofv:
+        wofv_path = exp_folder / f"{image_for_test_reg}_wofv.npy"
+        wofv_displacements = [load_clean_wofv_displacement(wofv_path)]
+        method_names.append("wofv")
+
     rmse_dict = {}
     rmse_dict["flow"] = {}
     rmse_dict["deformation"] = {}
@@ -109,6 +115,7 @@ def process_test_reg(
             of_functions=of_for_computation,
             of_params=params_for_computation,
             global_flow=global_flow,
+            wofv_displacements=wofv_displacements,
         )
 
         for m in method_names:

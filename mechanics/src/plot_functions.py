@@ -61,6 +61,7 @@ def save_of_strain_traction(
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
         "piv_algo": "PIV",
+        "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
 
@@ -260,7 +261,16 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
         dfs (pandas.DataFrame): Dataframe containing the RMSE data
         results_dir (Path): Path to the folder where the graphs will be saved
     """
-    desired_order = ["Proposed", "HS", "Farneback", "TV-L1", "ILK", "PIV", "wOFV"]
+    desired_order = [
+        "Proposed",
+        "HS",
+        "Farneback",
+        "TV-L1",
+        "ILK",
+        "PIV",
+        "RAFT",
+        "wOFV",
+    ]
     df_mean = pd.concat(dfs).groupby(level=0).mean().round(4)
     df_mean = df_mean.reindex([m for m in desired_order if m in df_mean.index])
     methods = df_mean.index.tolist()
@@ -275,6 +285,7 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
         "ILK": "red",
         "PIV": "yellow",
         "wOFV": "pink",
+        "RAFT": "brown",
     }
 
     method_markers = {
@@ -285,6 +296,7 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
         "ILK": "D",
         "PIV": "s",
         "wOFV": "D",
+        "RAFT": "^",
     }
 
     for method_key in methods:
@@ -536,6 +548,7 @@ def plot_reg(
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
         "piv_algo": "PIV",
+        "raft_aglo": "RAFT",
         "wofv": "wOFV",
     }
 
@@ -599,6 +612,7 @@ def plot_mean_error_noise(
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
         "piv": "PIV",
+        "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
 
@@ -672,6 +686,7 @@ def plot_noise_reg(
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
         "piv_algo": "PIV",
+        "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
 
@@ -680,8 +695,8 @@ def plot_noise_reg(
     methods_noise = list(rmse_mean_noise["deformation"].keys())
     methods_plot_noise = [(m, name_map.get(m, m)) for m in methods_noise]
 
-    line_styles = ["-", "--", "-.", ":", "-", ":", "-"]
-    markers = ["o", "s", "^", "D", "v", "s", "D"]
+    line_styles = ["-", "--", "-.", ":", "-", ":", "-", "--"]
+    markers = ["o", "s", "^", "D", "v", "s", "D", "v"]
 
     fig, axes = plt.subplots(1, 4, figsize=(32, 8))
     axes = axes.flatten()
@@ -779,6 +794,7 @@ def save_of_strain_traction_micro_img(
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
         "piv_algo": "PIV",
+        "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
 

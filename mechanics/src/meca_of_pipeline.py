@@ -28,6 +28,7 @@ def compute_of_strain_traction(
     of_params: list[dict],
     global_flow: bool,
     wofv_displacements: list[np.ndarray] | None = None,
+    reg_multipliers: list[float] | None = None,
 ) -> dict:
     """
     Compute optical-flow-based displacement, strain, deformation, stress, and traction fields for
@@ -104,41 +105,28 @@ def compute_of_strain_traction(
 
             current_params = copy.deepcopy(of_params[i])
 
-            if "fista" in method.__name__:
+            if "raft" in method.__name__:
+                h = method(image)
+
+            elif "fista" in method.__name__:
                 alpha = current_params.alpha
                 beta = current_params.beta
 
-                #     # # Signed distance: positive inside mask, negative outside
-                #     # dist_inside = ndi.distance_transform_edt(
-                #     #     ndi.binary_dilation(mask, iterations=2)
-                #     # )
-                #     # dist_outside = ndi.distance_transform_edt(
-                #     #     ~ndi.binary_dilation(mask, iterations=2)
-                #     # )
-                #     # signed_dist = dist_inside - dist_outside
-
-                #     # # Sigmoid weight: ~1 deep inside mask, ~0 deep outside, smooth at boundary
-                #     # scale = 1  # transition width in pixels
-                #     # weight = 1 / (1 + np.exp(-signed_dist / scale))
-
-                #     # current_params.alpha = weight * alpha + (1 - weight) * (alpha / 10)
-                #     # current_params.beta = weight * beta + (1 - weight) * (beta / 10)
-
-                #     # boundary = mask & (~ndi.binary_erosion(mask))
-
-                #     # current_params.alpha = np.where(boundary, alpha, alpha / 2)
-                #     # current_params.beta = np.where(boundary, beta, beta / 2)
+                if reg_multipliers is not None:
+                    current_params.alpha = current_params.alpha * reg_multipliers[nb]
 
                 current_params.alpha = np.where(
-                    ndi.binary_dilation(mask, iterations=1), alpha, alpha * 2
+                    ndi.binary_dilation(mask, iterations=1), alpha, alpha * 2.5
                 )
                 current_params.beta = np.where(
-                    ndi.binary_dilation(mask, iterations=1), beta, beta * 2
+                    ndi.binary_dilation(mask, iterations=1), beta, beta * 2.5
                 )
 
-            h = method(image, current_params, global_flow)
+                h = method(image, current_params, global_flow)
 
-            # h = method(image, of_params[i], global_flow)
+            else:
+                h = method(image, of_params[i], global_flow)
+
             time_method = time.time() - start_time
             h_mask = h * mask
             rmse_flow = rmse(h_mask, disp_gt) / norm_disp

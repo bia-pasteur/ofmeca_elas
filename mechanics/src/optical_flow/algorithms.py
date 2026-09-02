@@ -7,6 +7,7 @@ import cv2
 import numba
 import numpy as np
 import scipy.sparse as sp
+import torch
 from byotrack.implementation.optical_flow.opencv import OpenCVOpticalFlow
 from openpiv import piv
 from scipy import ndimage as ndi
@@ -18,6 +19,7 @@ from skimage.registration import (  # pylint: disable=no-name-in-module
     optical_flow_tvl1,
 )
 from skimage.transform import pyramid_reduce  # pylint: disable=no-name-in-module
+from torchvision.models.optical_flow import Raft_Large_Weights, raft_large
 
 from mechanics.src.config import (
     FarnebackParams,
@@ -1602,3 +1604,70 @@ def piv_algo(img: np.ndarray, piv_params: PIVParams, global_flow: bool) -> np.nd
             h_piv[1, t] = v_dense
 
     return h_piv
+
+
+def raft_algo(img: np.ndarray) -> np.ndarray:
+    """
+    Computed the displacement field between the frames of an image
+    of shape (2, H, W)
+
+    Args:
+        img (np.ndarray): The image
+
+    Returns:
+        np.ndarray:
+            Estimated displacement field `h_raft` with shape: `(2, 1, H, W)`
+    """
+
+    def pad_to_multiple_8(arr):
+        h, w = arr.shape
+
+        pad_h = (8 - h % 8) % 8
+        pad_w = (8 - w % 8) % 8
+
+        arr_padded = np.pad(arr, ((0, pad_h), (0, pad_w)), mode="edge")
+
+        return arr_padded, h, w
+
+    def unpad_flow(flow, orig_h, orig_w):
+        return flow[:, :, :orig_h, :orig_w]
+
+    dimension = 2
+
+    frame_1_padded, h, w = pad_to_multiple_8(img[0])
+    frame_2_padded, _, _ = pad_to_multiple_8(img[1])
+
+    # frame_1 shape: (H, W) -> need (1, C, H, W)
+    img1 = torch.from_numpy(frame_1_padded).unsqueeze(0).unsqueeze(0)  # (1, C, H, W)
+    img2 = torch.from_numpy(frame_2_padded).unsqueeze(0).unsqueeze(0)  # (1, C, H, W)
+
+    img1 = img1.repeat(1, 3, 1, 1)  # (1, 3, H, W)
+    img2 = img2.repeat(1, 3, 1, 1)  # (1, 3, H, W)
+
+    weights = Raft_Large_Weights.DEFAULT
+    transforms = weights.transforms()
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    model = raft_large(weights=Raft_Large_Weights.DEFAULT, progress=False).to(device)
+    model = model.eval()
+
+    img1, img2 = transforms(img1, img2)
+
+    img1 = img1.to(device)
+    img2 = img2.to(device)
+
+    with torch.no_grad():
+        list_of_flows = model(img1, img2)
+
+    predicted_flow = list_of_flows[-1]
+    predicted_flow_np = predicted_flow.cpu().numpy()
+
+    predicted_flow_unpadded = unpad_flow(predicted_flow_np, h, w)
+
+    h_raft = np.zeros((dimension,) + (img.shape[0] - 1,) + img.shape[1:])
+
+    h_raft[0, 0] = predicted_flow_unpadded[0, 1]
+    h_raft[1, 0] = predicted_flow_unpadded[0, 0]
+
+    return h_raft

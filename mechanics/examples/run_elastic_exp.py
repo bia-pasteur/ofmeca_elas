@@ -16,6 +16,7 @@ from mechanics.src.optical_flow.algorithms import (
     hs_of,
     ilk,
     piv_algo,
+    raft_algo,
     tv_l1,
 )
 from mechanics.src.plot_functions import (
@@ -47,6 +48,7 @@ def process_case(
     E: float | None = None,
     nu: float | None = None,
     image_id: int | None = None,
+    cases_done: dict | None = None,
 ) -> dict | list[dict]:
     """
     Process a specific simulation or experimental case by computing optical flow–based strain
@@ -145,11 +147,17 @@ def process_case(
         results_ = []
         for case_T_E_nu in sorted(exp_folder.iterdir()):
             if case_T_E_nu.name != ".DS_Store":
-                E_case = extract_E_from_folder(case_T_E_nu.name)
-                T_case = extract_T_from_folder(case_T_E_nu.name)
-                nu_case = extract_nu_from_folder(case_T_E_nu.name)
-                results_.append(
-                    process_case(
+                print(
+                    "\nAlready done ?",
+                    "Yes" if case_T_E_nu.name in cases_done else "No",
+                )
+                if case_T_E_nu.name in cases_done:
+                    results_.append(cases_done[case_T_E_nu.name])
+                else:
+                    E_case = extract_E_from_folder(case_T_E_nu.name)
+                    T_case = extract_T_from_folder(case_T_E_nu.name)
+                    nu_case = extract_nu_from_folder(case_T_E_nu.name)
+                    results_case = process_case(
                         elastic_params,
                         results_dir,
                         of_for_computation,
@@ -160,8 +168,10 @@ def process_case(
                         E=E_case,
                         nu=nu_case,
                     )
-                )
-        return results_
+                    results_.append(results_case)
+                    cases_done[case_T_E_nu.name] = results_case
+
+        return results_, cases_done
 
     else:
         raise ValueError("Can't run with nothing specified")
@@ -269,17 +279,23 @@ def main(
         "ilk": (ilk, optical_flow.ilk),
         "fista": (fista_of, optical_flow.fista),
         "piv": (piv_algo, optical_flow.piv),
+        "raft": (raft_algo, {}),
     }
 
     of_for_computation, params_for_computation = [], []
 
+    include_wofv = False
     for of_func_name in elastic_exp.of_funcs:
-        if of_func_name not in of_methods:
+        if of_func_name == "wofv":
+            include_wofv = True
+
+        elif of_func_name not in of_methods:
             raise ValueError(f"Unknown optical flow method '{of_func_name}'")
 
-        of_func, of_params = of_methods[of_func_name]
-        of_for_computation.append(of_func)
-        params_for_computation.append(of_params)
+        else:
+            of_func, of_params = of_methods[of_func_name]
+            of_for_computation.append(of_func)
+            params_for_computation.append(of_params)
 
     if elastic_exp.scatter_comparison:
         dfs = []
@@ -293,19 +309,21 @@ def main(
             elastic_exp.image_id,
         )
     ):
+        cases_done = {}
         for exp_ind in [1, 2, 3]:
-            results_exp = process_case(
+            results_exp, cases_done = process_case(
                 elastic_params=elastic_exp,
                 results_dir=Path(general.results_dir),
                 of_for_computation=of_for_computation,
                 params_for_computation=params_for_computation,
                 global_flow=optical_flow.global_flow,
-                include_wofv=general.include_wofv,
+                include_wofv=include_wofv,
                 exp_ind=exp_ind,
                 T=elastic_exp.T,
                 E=elastic_exp.E,
                 nu=elastic_exp.nu,
                 image_id=elastic_exp.image_id,
+                cases_done=cases_done,
             )
             with open(
                 Path(general.results_dir)
@@ -334,18 +352,19 @@ def main(
             save_scatter_comparison(dfs, Path(general.results_dir))
 
     else:
-        results = process_case(
+        results, _ = process_case(
             elastic_params=elastic_exp,
             results_dir=Path(general.results_dir),
             of_for_computation=of_for_computation,
             params_for_computation=params_for_computation,
             global_flow=optical_flow.global_flow,
-            include_wofv=general.include_wofv,
+            include_wofv=include_wofv,
             exp_ind=elastic_exp.exp_ind,
             T=elastic_exp.T,
             E=elastic_exp.E,
             nu=elastic_exp.nu,
             image_id=elastic_exp.image_id,
+            cases_done={},
         )
         if elastic_exp.image_id is None:
             if elastic_exp.exp_ind is not None:

@@ -26,7 +26,9 @@ from mechanics.src.utils import (
     compute_lame,
     extract_E_from_folder,
     extract_nu_from_folder,
+    find_experiment_folder,
     get_all_stds_from_folder,
+    load_clean_wofv_displacement,
     load_images_and_displacements,
 )
 
@@ -40,6 +42,7 @@ def process_test_reg(
     params_of: list[dict],
     global_flow: bool,
     factors_for_reg: list[float],
+    include_wofv: bool,
 ) -> dict:
     """
     Runs a regularization parameter sensitivity analysis for optical flow-based strain and traction estimation.
@@ -90,10 +93,16 @@ def process_test_reg(
 
     images = [np.load(img_path)]
     displacements = [np.load(ugt_path)]
+    wofv_displacements = None
 
     method_names = []
     for _, method in enumerate(of_for_computation):
         method_names.append(method.__name__.replace("_of", ""))
+
+    if include_wofv:
+        wofv_path = exp_folder / f"{image_for_test_reg}_wofv.mat"
+        wofv_displacements = [load_clean_wofv_displacement(wofv_path)]
+        method_names.append("wofv")
 
     rmse_dict = {}
     rmse_dict["flow"] = {}
@@ -124,6 +133,7 @@ def process_test_reg(
             of_functions=of_for_computation,
             of_params=params_for_computation,
             global_flow=global_flow,
+            wofv_displacements=wofv_displacements,
         )
 
         for m in method_names:
@@ -145,6 +155,7 @@ def process_noise(
     of_for_computation: list[Callable],
     params_for_computation: list[dict],
     global_flow: bool,
+    include_wofv: bool,
 ) -> dict:
     """
     Runs a noise sensitivity analysis for optical flow-based strain and traction estimation.
@@ -188,8 +199,13 @@ def process_noise(
     images, displacements, wofv_displacement = load_images_and_displacements(
         noise_path,
         mode="noisy",
-        load_wofv=True,
+        load_wofv=include_wofv,
     )
+
+    reg_multipliers = np.ones_like(images)
+
+    for i in range(len(reg_multipliers)):
+        reg_multipliers[i] += 0.1 * (i + 1)
 
     results = compute_of_strain_traction(
         images=images,
@@ -200,6 +216,7 @@ def process_noise(
         of_params=params_for_computation,
         global_flow=global_flow,
         wofv_displacements=wofv_displacement,
+        reg_multipliers=reg_multipliers,
     )
     elapsed = time.time() - start_time
     print(f"Noise analysis completed in {elapsed:.2f} seconds")
@@ -208,7 +225,9 @@ def process_noise(
     for _, method in enumerate(of_for_computation):
         method_names.append(method.__name__.replace("_of", ""))
 
-    method_names.append("wofv")
+    if include_wofv:
+        method_names.append("wofv")
+
     rmse_dict = {}
     rmse_dict["flow"] = {}
     rmse_dict["deformation"] = {}
@@ -259,18 +278,21 @@ def main(
     of_for_computation, params_for_computation = [], []
 
     for of_func_name in reg_exp.of_funcs:
-        if of_func_name not in of_methods:
+        if of_func_name == "wofv":
+            include_wofv = True
+
+        elif of_func_name not in of_methods:
             raise ValueError(f"Unknown optical flow method '{of_func_name}'")
 
-        of_func, of_params = of_methods[of_func_name]
-        of_for_computation.append(of_func)
-        params_for_computation.append(of_params)
+        else:
+            of_func, of_params = of_methods[of_func_name]
+            of_for_computation.append(of_func)
+            params_for_computation.append(of_params)
 
     rmse_acc_reg = defaultdict(lambda: defaultdict(list))
 
-    exp_folder = Path(
-        f"data/elas/experiment_1/T_{reg_exp.T}_E_{reg_exp.E}_nu_{reg_exp.nu}"
-    )
+    base_path = Path("data/elas")
+    exp_folder = find_experiment_folder(base_path, reg_exp.T, reg_exp.E, reg_exp.nu)
     img_indices = sorted(
         (f.stem.replace("_img", "")) for f in exp_folder.glob("*_img.npy")
     )
@@ -287,6 +309,7 @@ def main(
             params_of=params_for_computation,
             factors_for_reg=reg_exp.factors,
             global_flow=optical_flow.global_flow,
+            include_wofv=include_wofv,
         )
         for key in ["deformation", "traction"]:
             for method in rmse_dict_reg[key]:
@@ -320,6 +343,7 @@ def main(
             of_for_computation=of_for_computation,
             params_for_computation=params_for_computation,
             global_flow=optical_flow.global_flow,
+            include_wofv=include_wofv,
         )
         for key in ["deformation", "traction"]:
             for method in rmse_dict_noise[key]:

@@ -331,10 +331,20 @@ def results_to_df(results: dict | list[dict]) -> pd.DataFrame:
         "tv_l1": "TV-L1",
         "ilk": "ILK",
         "piv_algo": "PIV",
+        "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
 
-    desired_order = ["Proposed", "HS", "Farneback", "TV-L1", "ILK", "PIV", "wOFV"]
+    desired_order = [
+        "Proposed",
+        "HS",
+        "Farneback",
+        "TV-L1",
+        "ILK",
+        "PIV",
+        "RAFT",
+        "wOFV",
+    ]
 
     if isinstance(results, dict):
         results = [results]

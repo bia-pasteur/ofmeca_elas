@@ -7,6 +7,6 @@ elas_simu:
   ym_for_t_nu: 500
   t_for_ym_nu: 100
   nu_for_ym_t: 0.45
-  traction_zone: [100, 150, 200, 250]
-  youngs_modulus: [200, 500, 1000, 1500]
-  nu: [0.3, 0.35, 0.4, 0.45]
+  traction_zone: [100] #[100, 150, 200, 250]
+  youngs_modulus: [300] #[200, 300, 500, 1000]
+  nu: [0.45]

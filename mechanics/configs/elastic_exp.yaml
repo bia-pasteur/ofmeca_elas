@@ -1,5 +1,5 @@
 elastic_exp:
-  of_funcs: [fista, hs, farneback, tvl1, ilk]
+  of_funcs: [fista, hs, farneback, tvl1, ilk, raft]
   T: null #100
   E: null #500
   nu: null #0.3

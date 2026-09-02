@@ -1,2 +1,2 @@
 noise_exp:
-  of_funcs: [fista]
+  of_funcs: [fista, hs, farneback, ilk, tvl1, wofv]

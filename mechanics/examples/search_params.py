@@ -34,11 +34,11 @@ def process_case(
     of_for_computation: list[Callable],
     params_for_computation: list[dict],
     global_flow: bool,
-    exp_ind: int = None,
-    T: float = None,
-    E: float = None,
-    nu: float = None,
-    image_id: int = None,
+    exp_ind: int | None = None,
+    T: float | None = None,
+    E: float | None = None,
+    nu: float | None = None,
+    image_id: int | None = None,
 ) -> dict | list[dict]:
     """
     Process a specific simulation or experimental case by computing optical flow–based strain
@@ -111,7 +111,7 @@ def process_case(
 
     elif E is not None and T is not None and nu is not None:
         exp_folder = find_experiment_folder(base_path, T, E, nu)
-        images, displacements = load_images_and_displacements(
+        images, displacements, _ = load_images_and_displacements(
             exp_folder, mode="original"
         )
 

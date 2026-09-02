@@ -1,6 +1,6 @@
 reg_exp:
-  of_funcs: [fista, hs, farneback, ilk, tvl1, piv]
+  of_funcs: [fista, hs, farneback, ilk, tvl1, wofv]
   T: 100.0
-  E: 1000.0
-  nu: 0.3
+  E: 500.0
+  nu: 0.45
   factors: [1.4, 1.2, 1, 0.8, 0.6, 0.5]

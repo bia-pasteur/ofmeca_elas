@@ -1,3 +1,2 @@
 general:
   results_dir: "results"
-  include_wofv: True

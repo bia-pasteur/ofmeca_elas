@@ -11,7 +11,6 @@ class GeneralParams:
     """General parameters of the analysis"""
 
     results_dir: str
-    include_wofv: bool
 
 
 @dataclass

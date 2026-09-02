@@ -2,10 +2,10 @@ optical_flow_list:
   global_flow: False
 
   fista_list:
-    num_iter: [150] 
-    num_warp: [5]
-    alpha: [0.1] 
-    beta: [0.8] 
+    num_iter: [300] 
+    num_warp: [7]
+    alpha: [0.01, 0.02, 0.05, 0.1] 
+    beta: [0.4, 0.5, 0.6, 0.8] 
     eps: 0.001
     num_pyramid: 10
     pyramid_downscale: 1.5
@@ -14,7 +14,7 @@ optical_flow_list:
   hs_list:
     num_iter: [500] 
     num_warp: [7]
-    alpha: [0.1] 
+    alpha: [0.01, 0.05, 0.1, 0.2] 
     eps: 0.001
     num_pyramid: 10
     pyramid_downscale: 1.5
@@ -22,25 +22,25 @@ optical_flow_list:
     w: 1
 
   farneback_list:
-    winSize: [5, 10]
-    pyrScale: [0.3, 0.5]
+    winSize: [5, 10, 15, 20]
+    pyrScale: [0.3]
     numLevels: [5] 
     fastPyramids: True 
     numIters: [3]
     polyN: [3] 
-    polySigma: [1, 1.5]
+    polySigma: [1]
     flags: 0
 
   tvl1_list:
-    attachment: [25]
-    tightness: [0.6]
+    attachment: [25, 30, 35, 40]
+    tightness: [0.4]
     num_warp: [5] 
     num_iter: [150]
     tol: 0.0001 
     prefilter: False
 
   ilk_list:
-    radius: [1, 1.5, 2, 2.5, 3, 3.5, 4]
+    radius: [3.5, 4, 4.5]
     num_warp: [7] 
     gaussian: True 
     prefilter: True 
