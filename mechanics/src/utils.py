@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import skimage
 import tifffile
+from scipy.interpolate import griddata
 from scipy.io import loadmat
 from shapely import Polygon, contains_xy
 
@@ -172,9 +173,11 @@ def load_images_and_displacements(
     exp_folder: Path,
     mode: str = "original",
     load_wofv: bool = False,
+    load_piv: bool = False,
 ) -> tuple[
     list[np.ndarray],
     list[np.ndarray],
+    list[np.ndarray] | None,
     list[np.ndarray] | None,
 ]:
     exp_folder = Path(exp_folder)
@@ -182,53 +185,29 @@ def load_images_and_displacements(
     if mode == "original":
         img_files = sorted(
             exp_folder.rglob("*_img.npy"),
-            # key=lambda f: (
-            #     int(re.match(r"(\d+)_img\.npy", f.name).group(1))
-            #     if re.match(r"(\d+)_img\.npy", f.name)
-            #     else -1
-            # ),
         )
         disp_files = sorted(
             exp_folder.rglob("*_ugt.npy"),
-            # key=lambda f: (
-            #     int(re.match(r"(\d+)_ugt\.npy", f.name).group(1))
-            #     if re.match(r"(\d+)_ugt\.npy", f.name)
-            #     else -1
-            # ),
         )
         wofv_files = sorted(
             exp_folder.rglob("*_wofv.mat"),
-            # key=lambda f: (
-            #     int(re.match(r"(\d+)_wofv\.mat", f.name).group(1))
-            #     if re.match(r"(\d+)_wofv\.mat", f.name)
-            #     else -1
-            # ),
+        )
+        piv_files = sorted(
+            exp_folder.rglob("*_piv.mat"),
         )
 
     elif mode == "noisy":
         img_files = sorted(
             exp_folder.rglob("std_*_img.npy"),
         )
-        #     [f for f in exp_folder.glob("std_*_img.npy")],
-        #     key=lambda f: float(
-        #         re.search(r"std_(\d+p?\d*)_img\.npy", f.name).group(1).replace("p", ".")
-        #     ),
-        # )
         disp_files = sorted(
             exp_folder.rglob("std_*_ugt.npy"),
         )
-        #     [f for f in exp_folder.glob("std_*_ugt.npy")],
-        #     key=lambda f: float(
-        #         re.search(r"std_(\d+p?\d*)_ugt\.npy", f.name).group(1).replace("p", ".")
-        #     ),
-        # )
         wofv_files = sorted(
             exp_folder.rglob("std_*_wofv.mat"),
-            # key=lambda f: (
-            #     int(re.match(r"(\d+)_wofv\.mat", f.name).group(1))
-            #     if re.match(r"(\d+)_wofv\.mat", f.name)
-            #     else -1
-            # ),
+        )
+        piv_files = sorted(
+            exp_folder.rglob("std_*_piv.mat"),
         )
 
     else:
@@ -238,17 +217,29 @@ def load_images_and_displacements(
     displacements = [np.load(f) for f in disp_files]
 
     wofv_displacements = None
+    piv_displacements = None
 
     if load_wofv:
         if len(wofv_files) != len(images):
             raise ValueError(
-                "Number of WO-FV files does not match the number of images: "
+                "Number of wOFV files does not match the number of images: "
                 f"{len(wofv_files)} WO-FV files vs {len(images)} images."
             )
 
         wofv_displacements = [load_clean_wofv_displacement(f) for f in wofv_files]
 
-    return images, displacements, wofv_displacements
+    if load_piv:
+        if len(piv_files) != len(images):
+            raise ValueError(
+                "Number of PIV files does not match the number of images: "
+                f"{len(piv_files)} PIV files vs {len(images)} images."
+            )
+
+        piv_displacements = [
+            load_clean_piv_displacement(f, images[i]) for i, f in enumerate(piv_files)
+        ]
+
+    return images, displacements, wofv_displacements, piv_displacements
 
 
 def load_clean_wofv_displacement(file):
@@ -263,6 +254,34 @@ def load_clean_wofv_displacement(file):
     h_wofv[0, 0] = v_wofv
 
     return h_wofv
+
+
+def load_clean_piv_displacement(file, img):
+    mat_data = loadmat(file)
+    u_piv = mat_data["u_original"]
+    v_piv = mat_data["v_original"]
+    x = mat_data["x"]
+    y = mat_data["y"]
+
+    x_flat = np.nan_to_num(x.flatten(), nan=0.0)
+    y_flat = np.nan_to_num(y.flatten(), nan=0.0)
+    u_flat = np.nan_to_num(u_piv.flatten(), nan=0.0)
+    v_flat = np.nan_to_num(v_piv.flatten(), nan=0.0)
+
+    img_h, img_w = img[0].shape
+
+    xi = np.linspace(x.min(), x.max(), img_w)
+    yi = np.linspace(y.min(), y.max(), img_h)
+    xi_grid, yi_grid = np.meshgrid(xi, yi)
+
+    u_dense = griddata((x_flat, y_flat), u_flat, (xi_grid, yi_grid), method="cubic")
+    v_dense = griddata((x_flat, y_flat), v_flat, (xi_grid, yi_grid))
+
+    h_piv = np.zeros((2,) + (img.shape[0],) + img.shape[1:])
+    h_piv[1, 0] = u_dense
+    h_piv[0, 0] = v_dense
+
+    return h_piv
 
 
 def compute_lame(E, nu):
@@ -330,7 +349,7 @@ def results_to_df(results: dict | list[dict]) -> pd.DataFrame:
         "farneback": "Farneback",
         "tv_l1": "TV-L1",
         "ilk": "ILK",
-        "piv_algo": "PIV",
+        "piv": "CC",
         "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
@@ -341,7 +360,7 @@ def results_to_df(results: dict | list[dict]) -> pd.DataFrame:
         "Farneback",
         "TV-L1",
         "ILK",
-        "PIV",
+        "CC",
         "RAFT",
         "wOFV",
     ]

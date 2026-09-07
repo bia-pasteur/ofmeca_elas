@@ -15,7 +15,6 @@ from mechanics.src.optical_flow.algorithms import (
     fista_of,
     hs_of,
     ilk,
-    piv_algo,
     raft_algo,
     tv_l1,
 )
@@ -30,6 +29,7 @@ from mechanics.src.utils import (
     extract_nu_from_folder,
     extract_T_from_folder,
     find_experiment_folder,
+    load_clean_piv_displacement,
     load_clean_wofv_displacement,
     load_images_and_displacements,
     results_to_df,
@@ -41,8 +41,8 @@ def process_case(
     results_dir: Path,
     of_for_computation: list[Callable],
     params_for_computation: list[dict],
-    global_flow: bool,
     include_wofv: bool = False,
+    include_piv: bool = False,
     exp_ind: int | None = None,
     T: float | None = None,
     E: float | None = None,
@@ -67,7 +67,6 @@ def process_case(
         results_dir (Path): Directory where results (plots and data) will be saved.
         of_for_computation (List[Callable]): List of optical flow algorithms (functions) to apply for displacement computation.
         params_for_computation (List[Dict]): List of parameter dictionaries corresponding to each optical flow method.
-        global_flow (bool): Used in optical flow computation to compute the flow between every image and the next or between the first image and every other.
         wofv_base_path (Path, optional): Base path to PIVlab results. If provided, PIV displacements are loaded and included.
         exp_ind (int, optional): Experiment index (1, 2, or 3). If provided, the function iterates over
             all sub-cases `(T, E, nu)` contained in the corresponding experiment folder. Defaults to None.
@@ -104,6 +103,7 @@ def process_case(
             img_path = exp_folder / f"{image_id}_img.npy"
             ugt_path = exp_folder / f"{image_id}_ugt.npy"
             wofv_path = exp_folder / f"{image_id}.mat"
+            piv_path = exp_folder / f"{image_id}.mat"
 
             if not img_path.exists() or not ugt_path.exists():
                 raise FileNotFoundError(
@@ -115,6 +115,9 @@ def process_case(
 
             if include_wofv:
                 wofv_displacements = [load_clean_wofv_displacement(wofv_path)]
+
+            if include_piv:
+                piv_displacements = [load_clean_piv_displacement(piv_path, images[0])]
             mu, lambda_ = compute_lame(E, nu)
 
     elif (E is not None and (T is None or nu is None)) or (
@@ -126,10 +129,13 @@ def process_case(
 
     elif E is not None and T is not None and nu is not None:
         exp_folder = find_experiment_folder(base_path, T, E, nu)
-        images, displacements, wofv_displacements = load_images_and_displacements(
-            exp_folder,
-            mode="original",
-            load_wofv=include_wofv,
+        images, displacements, wofv_displacements, piv_displacements = (
+            load_images_and_displacements(
+                exp_folder,
+                mode="original",
+                load_wofv=include_wofv,
+                load_piv=include_piv,
+            )
         )
 
         mu, lambda_ = compute_lame(E, nu)
@@ -162,8 +168,8 @@ def process_case(
                         results_dir,
                         of_for_computation,
                         params_for_computation,
-                        global_flow=global_flow,
                         include_wofv=include_wofv,
+                        include_piv=include_piv,
                         T=T_case,
                         E=E_case,
                         nu=nu_case,
@@ -191,8 +197,8 @@ def process_case(
         lambda_=lambda_,
         of_functions=of_for_computation,
         of_params=params_for_computation,
-        global_flow=global_flow,
         wofv_displacements=wofv_displacements,
+        piv_displacements=piv_displacements,
     )
 
     if image_id is not None:
@@ -278,16 +284,19 @@ def main(
         "tvl1": (tv_l1, optical_flow.tvl1),
         "ilk": (ilk, optical_flow.ilk),
         "fista": (fista_of, optical_flow.fista),
-        "piv": (piv_algo, optical_flow.piv),
         "raft": (raft_algo, {}),
     }
 
     of_for_computation, params_for_computation = [], []
 
     include_wofv = False
+    include_piv = False
     for of_func_name in elastic_exp.of_funcs:
         if of_func_name == "wofv":
             include_wofv = True
+
+        elif of_func_name == "piv":
+            include_piv = True
 
         elif of_func_name not in of_methods:
             raise ValueError(f"Unknown optical flow method '{of_func_name}'")
@@ -316,8 +325,8 @@ def main(
                 results_dir=Path(general.results_dir),
                 of_for_computation=of_for_computation,
                 params_for_computation=params_for_computation,
-                global_flow=optical_flow.global_flow,
                 include_wofv=include_wofv,
+                include_piv=include_piv,
                 exp_ind=exp_ind,
                 T=elastic_exp.T,
                 E=elastic_exp.E,
@@ -347,7 +356,6 @@ def main(
             )
             if elastic_exp.scatter_comparison:
                 dfs.append(df_exp)
-
         if elastic_exp.scatter_comparison:
             save_scatter_comparison(dfs, Path(general.results_dir))
 
@@ -357,8 +365,8 @@ def main(
             results_dir=Path(general.results_dir),
             of_for_computation=of_for_computation,
             params_for_computation=params_for_computation,
-            global_flow=optical_flow.global_flow,
             include_wofv=include_wofv,
+            include_piv=include_piv,
             exp_ind=elastic_exp.exp_ind,
             T=elastic_exp.T,
             E=elastic_exp.E,

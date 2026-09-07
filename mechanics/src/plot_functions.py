@@ -56,27 +56,38 @@ def save_of_strain_traction(
     name_map = {
         "GT": "Ground Truth",
         "fista": "Ours",
-        "hs": "HS",
-        "ilk": "ILK",
-        "tv_l1": "TV-L1",
-        "farneback": "Farneback",
-        "piv_algo": "PIV",
-        "raft_algo": "RAFT",
         "wofv": "wOFV",
+        "ilk": "ILK",
+        "hs": "HS",
+        "farneback": "Farneback",
+        "tv_l1": "TV-L1",
+        "piv": "CC",
+        "raft_algo": "RAFT",
     }
+    desired_order = ["fista", "wofv", "ilk", "hs", "tv_l1", "farneback", "piv"]
 
     method_names = []
+    methods_in_order = []
+
+    for m in desired_order:
+        if m in methods:
+            methods_in_order.append(m)
+
     for m in methods:
+        if m not in desired_order:
+            methods_in_order.append(m)
+
+    for m in methods_in_order:
         name = m.__name__.replace("_of", "") if callable(m) else str(m)
         method_names.append(name_map.get(name, name))
 
-    num_methods = len(methods) + 1
+    num_methods = len(methods_in_order) + 1
 
     fig = plt.figure(figsize=(4 * num_methods, 12))
     gs = gridspec.GridSpec(3, num_methods, figure=fig, wspace=0.05, hspace=0.05)
 
     flows = [results[implot]["flows"]["gt"][:, 0]] + [
-        results[implot]["flows"][m][:, 0] for m in methods
+        results[implot]["flows"][m][:, 0] for m in methods_in_order
     ]
 
     quiv_line = None
@@ -136,12 +147,10 @@ def save_of_strain_traction(
             shrink=0.95,
             label="Displacement (Px)",
         )
-        cbar.ax.tick_params(labelsize=10)  # , colors='white')
-        # cbar.outline.set_edgecolor('white')
-        # plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
+        cbar.ax.tick_params(labelsize=10)
 
     data_list_strain = [results[implot]["deformation"]["gt"][0]] + [
-        results[implot]["deformation"][m][0] for m in methods
+        results[implot]["deformation"][m][0] for m in methods_in_order
     ]
 
     ims = []
@@ -167,12 +176,10 @@ def save_of_strain_traction(
         shrink=0.95,
         label="Deformation",
     )
-    cbar.ax.tick_params(labelsize=10)  # , colors='white')
-    # cbar.outline.set_edgecolor('white')
-    # plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
+    cbar.ax.tick_params(labelsize=10)
 
     fields = [results[implot]["traction"]["gt"]] + [
-        results[implot]["traction"][m] for m in methods
+        results[implot]["traction"][m] for m in methods_in_order
     ]
 
     quiv_line = None
@@ -238,9 +245,7 @@ def save_of_strain_traction(
             shrink=0.95,
             label="Traction force (Pa)",
         )
-        cbar.ax.tick_params(labelsize=10)  # , colors='white')
-        # cbar.outline.set_edgecolor('white')
-        # plt.setp(cbar.ax.yaxis.get_ticklabels(), color='white')
+        cbar.ax.tick_params(labelsize=10)
 
     if show:
         plt.show()
@@ -267,7 +272,7 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
         "Farneback",
         "TV-L1",
         "ILK",
-        "PIV",
+        "CC",
         "RAFT",
         "wOFV",
     ]
@@ -283,9 +288,9 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
         "Farneback": "green",
         "TV-L1": "purple",
         "ILK": "red",
-        "PIV": "yellow",
-        "wOFV": "pink",
-        "RAFT": "brown",
+        "CC": "yellow",
+        "wOFV": "brown",
+        "RAFT": "pink",
     }
 
     method_markers = {
@@ -293,11 +298,22 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
         "HS": "s",
         "Farneback": "^",
         "TV-L1": "^",
-        "ILK": "D",
-        "PIV": "s",
+        "ILK": "s",
+        "CC": "D",
         "wOFV": "D",
         "RAFT": "^",
     }
+
+    def get_text_offset(ax):
+        if ax == 0:
+            if method_key == "Farneback":
+                return -0.03, 0
+            if method_key == "Proposed":
+                return 0.1, 0.02
+            else:
+                return 0.02, 0
+        elif ax == 1:
+            return 0.05, 0
 
     for method_key in methods:
         x = df_mean.loc[method_key, "RMSE displacement"]
@@ -307,58 +323,28 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
             y,
             color=method_colors[method_key],
             marker=method_markers[method_key],
-            s=90,
+            s=50,
         )
-        if method_key == "Proposed":
-            axes[0].text(
-                x + 0.03,
-                y - 0.04,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-        elif method_key == "Farneback":
-            axes[0].text(
-                x + 0.035,
-                y - 0.04,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-        elif method_key == "HS":
-            axes[0].text(
-                x - 0.015,
-                y - 0.04,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-        elif method_key == "ILK":
-            axes[0].text(
-                x + 0.018,
-                y - 0.04,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-        else:
-            axes[0].text(
-                x + 0.021,
-                y - 0.04,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
+
+        axes[0].set_xlim(right=0.16)
+        xlim = axes[0].get_xlim()
+        ylim = axes[0].get_ylim()
+        central_x = (xlim[0] + xlim[1]) / 2
+        central_y = (ylim[0] + ylim[1]) / 2
+        x_offset, y_offset = get_text_offset(ax=0)
+
+        axes[0].text(
+            x + x_offset if x < central_x else x - x_offset,
+            y + y_offset if y < central_y else y - y_offset,
+            method_key,
+            fontsize=10,
+            ha="left"
+            if x < central_x or method_key == "Farneback" or method_key == "Proposed"
+            else "right",
+            va="bottom" if y > central_y or method_key == "wOFV" else "top",
+            fontweight="bold",
+            bbox={"facecolor": "white", "alpha": 0, "edgecolor": "none", "pad": 1},
+        )
 
     axes[0].set_xlabel("RMSE Displacement")
     axes[0].set_ylabel("RMSE Strain")
@@ -372,49 +358,25 @@ def save_scatter_comparison(dfs: pd.DataFrame, results_dir: Path):
             y,
             color=method_colors[method_key],
             marker=method_markers[method_key],
-            s=90,
+            s=50,
         )
-        if method_key == "Proposed":
-            axes[1].text(
-                x + 0.3,
-                y - 0.045,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
 
-        elif method_key == "Farneback":
-            axes[1].text(
-                x - 0.31,
-                y - 0.045,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-        elif method_key == "HS" or method_key == "ILK":
-            axes[1].text(
-                x + 0.15,
-                y - 0.045,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
-        else:
-            axes[1].text(
-                x + 0.2,
-                y - 0.045,
-                method_key,
-                fontsize=10,
-                ha="center",
-                va="bottom",
-                fontweight="bold",
-            )
+        xlim = axes[1].get_xlim()
+        ylim = axes[1].get_ylim()
+        central_x = (xlim[0] + xlim[1]) / 2
+        central_y = (ylim[0] + ylim[1]) / 2
+        x_offset, y_offset = get_text_offset(ax=1)
+
+        axes[1].text(
+            x + x_offset if x < central_x else x - x_offset,
+            y + y_offset if y < central_y else y - y_offset,
+            method_key,
+            fontsize=10,
+            ha="left" if x < central_x else "right",
+            va="top" if y < central_y else "bottom",
+            fontweight="bold",
+            bbox={"facecolor": "white", "alpha": 0, "edgecolor": "none", "pad": 1},
+        )
 
     axes[1].set_xlabel("RMSE Stress")
     axes[1].set_ylabel("RMSE Traction force")
@@ -547,7 +509,7 @@ def plot_reg(
         "ilk": "ILK",
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
-        "piv_algo": "PIV",
+        "piv": "CC",
         "raft_aglo": "RAFT",
         "wofv": "wOFV",
     }
@@ -611,7 +573,7 @@ def plot_mean_error_noise(
         "ilk": "ILK",
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
-        "piv": "PIV",
+        "piv": "CC",
         "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
@@ -685,7 +647,7 @@ def plot_noise_reg(
         "ilk": "ILK",
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
-        "piv_algo": "PIV",
+        "piv": "CC",
         "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
@@ -793,7 +755,7 @@ def save_of_strain_traction_micro_img(
         "ilk": "ILK",
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
-        "piv_algo": "PIV",
+        "piv": "CC",
         "raft_algo": "RAFT",
         "wofv": "wOFV",
     }
@@ -1083,16 +1045,28 @@ def plot_pos_dis_strain_trac_micro_image(
         "ilk": "ILK",
         "tv_l1": "TV-L1",
         "farneback": "Farneback",
-        "piv": "PIV",
+        "piv": "CC",
         "wofv": "wOFV",
     }
 
+    desired_order = ["fista", "wofv", "ilk", "hs", "tv_l1", "farneback", "piv"]
+
     method_names = []
+    methods_in_order = []
+
+    for m in desired_order:
+        if m in methods:
+            methods_in_order.append(m)
+
     for m in methods:
+        if m not in desired_order:
+            methods_in_order.append(m)
+
+    for m in methods_in_order:
         name = m.__name__.replace("_of", "") if callable(m) else str(m)
         method_names.append(name_map.get(name, name))
 
-    num_methods = len(methods)
+    num_methods = len(methods_in_order)
 
     fig = plt.figure(figsize=(4 * (num_methods + 1), 9))
 
@@ -1111,7 +1085,7 @@ def plot_pos_dis_strain_trac_micro_image(
     ax_left.axis("off")
     ax_left.set_title("Cell positions", fontsize=15)
 
-    flows = [results["flows"][m][:, 0] for m in methods]
+    flows = [results["flows"][m][:, 0] for m in methods_in_order]
     flow_axes = []
     quiv_flow = None
 
@@ -1171,7 +1145,7 @@ def plot_pos_dis_strain_trac_micro_image(
         )
         cbar.ax.tick_params(labelsize=10)
 
-    data_list_strain = [results["deformation"][m][0] for m in methods]
+    data_list_strain = [results["deformation"][m][0] for m in methods_in_order]
     strain_axes = []
     ims = []
 
@@ -1210,7 +1184,7 @@ def plot_pos_dis_strain_trac_micro_image(
         )
         cbar.ax.tick_params(labelsize=10)
 
-    fields = [results["traction"][m] for m in methods]
+    fields = [results["traction"][m] for m in methods_in_order]
     traction_axes = []
     quiv_traction = None
 

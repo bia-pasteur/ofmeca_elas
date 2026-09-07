@@ -9,9 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 from byotrack.implementation.optical_flow.opencv import OpenCVOpticalFlow
-from openpiv import piv
 from scipy import ndimage as ndi
-from scipy.interpolate import griddata
 from scipy.ndimage import map_coordinates
 from scipy.signal import convolve
 from skimage.registration import (  # pylint: disable=no-name-in-module
@@ -26,7 +24,6 @@ from mechanics.src.config import (
     FistaParams,
     HSParams,
     ILKParams,
-    PIVParams,
     TVL1Params,
 )
 
@@ -1473,137 +1470,137 @@ def ilk(img: np.ndarray, ilk_params: ILKParams, global_flow: bool) -> np.ndarray
 # Functions related to PIV algorithm
 
 
-def inverse_transform_coordinates(x, y, u, v):
-    if y.ndim == 1:
-        y = y[::-1]
-    else:
-        y = y[::-1, :]
-    return x, y, u, v
+# def inverse_transform_coordinates(x, y, u, v):
+#     if y.ndim == 1:
+#         y = y[::-1]
+#     else:
+#         y = y[::-1, :]
+#     return x, y, u, v
 
 
-def get_dense_displacement(
-    frame_a,
-    frame_b,
-    window_size=8,
-    overlap=2,
-    search_area=16,
-    s2n_thresh=1.3,
-    method="cubic",
-):
-    """
-    Get pixel-level dense displacement field
-    """
+# def get_dense_displacement(
+#     frame_a,
+#     frame_b,
+#     window_size=8,
+#     overlap=2,
+#     search_area=16,
+#     s2n_thresh=1.3,
+#     method="cubic",
+# ):
+#     """
+#     Get pixel-level dense displacement field
+#     """
 
-    frame_a_norm = (
-        (frame_a - frame_a.min()) / (frame_a.max() - frame_a.min()) * 255
-    ).astype(np.int32)
-    frame_b_norm = (
-        (frame_b - frame_b.min()) / (frame_b.max() - frame_b.min()) * 255
-    ).astype(np.int32)
+#     frame_a_norm = (
+#         (frame_a - frame_a.min()) / (frame_a.max() - frame_a.min()) * 255
+#     ).astype(np.int32)
+#     frame_b_norm = (
+#         (frame_b - frame_b.min()) / (frame_b.max() - frame_b.min()) * 255
+#     ).astype(np.int32)
 
-    x, y, u, v, s2n = piv.simple_piv(
-        frame_a_norm,
-        frame_b_norm,
-        window_size=window_size,
-        overlap=overlap,
-        search_area_size=search_area,
-        dt=1.0,
-        validation_method="sig2noise",
-        plot=False,
-    )
+#     x, y, u, v, s2n = piv.simple_piv(
+#         frame_a_norm,
+#         frame_b_norm,
+#         window_size=window_size,
+#         overlap=overlap,
+#         search_area_size=search_area,
+#         dt=1.0,
+#         validation_method="sig2noise",
+#         plot=False,
+#     )
 
-    x, y, u, v = inverse_transform_coordinates(x, y, u, v)
+#     x, y, u, v = inverse_transform_coordinates(x, y, u, v)
 
-    valid = s2n > s2n_thresh
+#     valid = s2n > s2n_thresh
 
-    x_valid = x[valid]
-    y_valid = y[valid]
-    u_valid = u[valid]
-    v_valid = v[valid]
+#     x_valid = x[valid]
+#     y_valid = y[valid]
+#     u_valid = u[valid]
+#     v_valid = v[valid]
 
-    h, w = frame_a.shape
-    y_dense, x_dense = np.mgrid[0:h:1, 0:w:1]
+#     h, w = frame_a.shape
+#     y_dense, x_dense = np.mgrid[0:h:1, 0:w:1]
 
-    u_dense = griddata(
-        (x_valid, y_valid), u_valid, (x_dense, y_dense), method=method, fill_value=0
-    )
-    v_dense = griddata(
-        (x_valid, y_valid), v_valid, (x_dense, y_dense), method=method, fill_value=0
-    )
+#     u_dense = griddata(
+#         (x_valid, y_valid), u_valid, (x_dense, y_dense), method=method, fill_value=0
+#     )
+#     v_dense = griddata(
+#         (x_valid, y_valid), v_valid, (x_dense, y_dense), method=method, fill_value=0
+#     )
 
-    u_dense = np.nan_to_num(u_dense, nan=0.0)
-    v_dense = np.nan_to_num(v_dense, nan=0.0)
+#     u_dense = np.nan_to_num(u_dense, nan=0.0)
+#     v_dense = np.nan_to_num(v_dense, nan=0.0)
 
-    return u_dense, v_dense, (x, y, u, v, valid)
+#     return u_dense, v_dense, (x, y, u, v, valid)
 
 
-def piv_algo(img: np.ndarray, piv_params: PIVParams, global_flow: bool) -> np.ndarray:
-    """
-    Computes dense displacement field between consecutive frames using PIV.
+# def piv_algo(img: np.ndarray, piv_params: PIVParams, global_flow: bool) -> np.ndarray:
+#     """
+#     Computes dense displacement field between consecutive frames using PIV.
 
-    This function iteratively estimates the displacement field between each pair of
-    successive frames in a temporal image sequence, producing a dense optical flow field
-    across time.
+#     This function iteratively estimates the displacement field between each pair of
+#     successive frames in a temporal image sequence, producing a dense optical flow field
+#     across time.
 
-    Args:
-        img (np.ndarray): Input image sequence with shape (T, H, W)
-            where T is number of frames, H is height, W is width
-        piv_params (PIVParams):
-            Parameter object containing the configuration for PIV, with fields:
-              - `window_size` (int): Size of interrogation window
-              - `overlap` (int): Overlap of interrogation windows
-              - `search_area` (int): Size of search area
-              - `s2n_thresh` (float): Signal-to-noise ratio threshold
-              - `method` (str): Interpolation method ('cubic', 'linear', etc.)
-        global_flow (bool): Type of flow computation
-              - True for flow between frame 0 and frame t for every t
-              - False for flow between frame t and frame t+1 for every t
+#     Args:
+#         img (np.ndarray): Input image sequence with shape (T, H, W)
+#             where T is number of frames, H is height, W is width
+#         piv_params (PIVParams):
+#             Parameter object containing the configuration for PIV, with fields:
+#               - `window_size` (int): Size of interrogation window
+#               - `overlap` (int): Overlap of interrogation windows
+#               - `search_area` (int): Size of search area
+#               - `s2n_thresh` (float): Signal-to-noise ratio threshold
+#               - `method` (str): Interpolation method ('cubic', 'linear', etc.)
+#         global_flow (bool): Type of flow computation
+#               - True for flow between frame 0 and frame t for every t
+#               - False for flow between frame t and frame t+1 for every t
 
-    Returns:
-        np.ndarray:
-            Estimated displacement field `h_piv` with shape:
-              - `(2, T-1, H, W)` if global_flow=False
-              - `(2, T, H, W)` if global_flow=True
+#     Returns:
+#         np.ndarray:
+#             Estimated displacement field `h_piv` with shape:
+#               - `(2, T-1, H, W)` if global_flow=False
+#               - `(2, T, H, W)` if global_flow=True
 
-            where:
-              - 2 represents (u, v) components
-              - T is number of frames
-              - H, W are spatial dimensions matching input frames
-    """
+#             where:
+#               - 2 represents (u, v) components
+#               - T is number of frames
+#               - H, W are spatial dimensions matching input frames
+#     """
 
-    dimension = 2  # u, v components
-    frames = img.shape[0]
+#     dimension = 2  # u, v components
+#     frames = img.shape[0]
 
-    if global_flow:
-        h_piv = np.zeros((dimension,) + (img.shape[0],) + img.shape[1:])
-        for t in range(1, frames):
-            u_dense, v_dense, _ = get_dense_displacement(
-                img[0],
-                img[t],
-                window_size=piv_params.window_size,
-                overlap=piv_params.overlap,
-                search_area=piv_params.search_area,
-                s2n_thresh=piv_params.s2n_thresh,
-                method=piv_params.method,
-            )
-            h_piv[0, t] = u_dense
-            h_piv[1, t] = v_dense
-    else:
-        h_piv = np.zeros((dimension,) + (img.shape[0] - 1,) + img.shape[1:])
-        for t in range(frames - 1):
-            u_dense, v_dense, _ = get_dense_displacement(
-                img[t],
-                img[t + 1],
-                window_size=piv_params.window_size,
-                overlap=piv_params.overlap,
-                search_area=piv_params.search_area,
-                s2n_thresh=piv_params.s2n_thresh,
-                method=piv_params.method,
-            )
-            h_piv[0, t] = u_dense
-            h_piv[1, t] = v_dense
+#     if global_flow:
+#         h_piv = np.zeros((dimension,) + (img.shape[0],) + img.shape[1:])
+#         for t in range(1, frames):
+#             u_dense, v_dense, _ = get_dense_displacement(
+#                 img[0],
+#                 img[t],
+#                 window_size=piv_params.window_size,
+#                 overlap=piv_params.overlap,
+#                 search_area=piv_params.search_area,
+#                 s2n_thresh=piv_params.s2n_thresh,
+#                 method=piv_params.method,
+#             )
+#             h_piv[0, t] = u_dense
+#             h_piv[1, t] = v_dense
+#     else:
+#         h_piv = np.zeros((dimension,) + (img.shape[0] - 1,) + img.shape[1:])
+#         for t in range(frames - 1):
+#             u_dense, v_dense, _ = get_dense_displacement(
+#                 img[t],
+#                 img[t + 1],
+#                 window_size=piv_params.window_size,
+#                 overlap=piv_params.overlap,
+#                 search_area=piv_params.search_area,
+#                 s2n_thresh=piv_params.s2n_thresh,
+#                 method=piv_params.method,
+#             )
+#             h_piv[0, t] = u_dense
+#             h_piv[1, t] = v_dense
 
-    return h_piv
+#     return h_piv
 
 
 def raft_algo(img: np.ndarray) -> np.ndarray:

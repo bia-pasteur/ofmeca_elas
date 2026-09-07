@@ -3,7 +3,7 @@ optical_flow:
 
   fista:
     num_iter: 300 # for synthetic exp : 300, for image 1 and 2: 300
-    num_warp: 7
+    num_warp: 5
     alpha: 0.01 # for synthetic exp and image 1: 0.1, for image 2: 0.3
     beta: 0.4 # for synthetic exp, image 1 and image 2: 0.8
     eps: 0.001
@@ -32,7 +32,7 @@ optical_flow:
     flags: 0
 
   tvl1:
-    attachment: 40
+    attachment: 35
     tightness: 0.5
     num_warp: 5 
     num_iter: 150
@@ -40,7 +40,7 @@ optical_flow:
     prefilter: False
 
   ilk:
-    radius: 3.5
+    radius: 5
     num_warp: 7 
     gaussian: True 
     prefilter: True 
@@ -48,6 +48,6 @@ optical_flow:
   piv:
     window_size: 10
     overlap: 2
-    search_area: 15
+    search_area: 12
     s2n_thresh: 1.3
     method: "cubic"

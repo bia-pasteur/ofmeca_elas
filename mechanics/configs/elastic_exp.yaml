@@ -1,5 +1,5 @@
 elastic_exp:
-  of_funcs: [fista, hs, farneback, tvl1, ilk, raft]
+  of_funcs: [fista, wofv, ilk, hs, tvl1, farneback, piv]
   T: null #100
   E: null #500
   nu: null #0.3
@@ -15,5 +15,5 @@ elastic_exp:
   E_for_plot: 500
   nu_for_plot: 0.45
   threshold_inf: 0
-  threshold_sup: 120
+  threshold_sup: 130
   scatter_comparison: True

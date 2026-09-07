@@ -1,9 +1,9 @@
 micro_exp:
-  of_funcs: [fista, ilk, tvl1]
+  of_funcs: [fista, wofv, ilk]
 
   # Image 1
   im: 1
-  path: "/Users/josephinelahmani/Desktop/ofmeca/data/micro_images/250213_Overnight 50Hz 25Vpp_pos2.tif"
+  path: "/Users/josephinelahmani/Desktop/ofmeca_elas/data/micro_images/250213_Overnight 50Hz 25Vpp_pos2.tif"
   vminpositions: 0.3
   vmaxpositions: 0.7
   qt: True
@@ -14,7 +14,7 @@ micro_exp:
 
   # Image 2:
   # im: 2
-  # path: "/Users/josephinelahmani/Desktop/ofmeca/data/micro_images/250225_WT_1p2CD100RGD_FastAcq_pos1.tif" 
+  # path: "/Users/josephinelahmani/Desktop/ofmeca_elas/data/micro_images/250225_WT_1p2CD100RGD_FastAcq_pos1.tif" 
   # vminpositions: null
   # vmaxpositions: null
   # qt: False

@@ -168,6 +168,17 @@ class ILKParamsList:
 
 
 @dataclass
+class PIVParamsList:
+    """PIV parameters"""
+
+    window_size: list[int]
+    overlap: list[int]
+    search_area: list[int]
+    s2n_thresh: list[float]
+    method: str
+
+
+@dataclass
 class OpticalFlowParamsList:
     """Optical Flow parameters"""
 
@@ -177,6 +188,7 @@ class OpticalFlowParamsList:
     farneback_list: FarnebackParamsList
     tvl1_list: TVL1ParamsList
     ilk_list: ILKParamsList
+    piv_list: PIVParamsList
 
 
 @dataclass

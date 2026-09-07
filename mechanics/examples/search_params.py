@@ -12,29 +12,29 @@ import numpy as np
 
 from mechanics.src.config import ElasticExperiment, GeneralParams, OpticalFlowParamsList
 from mechanics.src.meca_of_pipeline import compute_of_strain_traction
-from mechanics.src.optical_flow.algorithms import farneback, fista_of, hs_of, ilk, tv_l1
+from mechanics.src.optical_flow.algorithms import (
+    farneback,
+    fista_of,
+    hs_of,
+    ilk,
+    tv_l1,
+)
 from mechanics.src.plot_functions import (
-    save_of_strain_traction,
-    save_table_rmse_with_std,
+    save_table_rmse,
 )
 from mechanics.src.utils import (
     compute_lame,
-    extract_E_from_folder,
-    extract_nu_from_folder,
-    extract_T_from_folder,
     find_experiment_folder,
-    load_images_and_displacements,
+    load_clean_wofv_displacement,
     results_to_df,
+    rmse,
 )
 
 
 def process_case(
-    elastic_params: ElasticExperiment,
-    results_dir: Path,
     of_for_computation: list[Callable],
     params_for_computation: list[dict],
     global_flow: bool,
-    exp_ind: int | None = None,
     T: float | None = None,
     E: float | None = None,
     nu: float | None = None,
@@ -81,8 +81,7 @@ def process_case(
     base_path = Path("data/elas")
     images = []
     displacements = []
-    mu = 0
-    lambda_ = 0
+    mu, lambda_ = compute_lame(500.0, 0.45)
     if image_id is not None:
         if E is None or T is None or nu is None:
             raise ValueError(
@@ -100,63 +99,28 @@ def process_case(
 
             images = [np.load(img_path)]
             displacements = [np.load(ugt_path)]
-            mu, lambda_ = compute_lame(E, nu)
 
-    elif (E is not None and (T is None or nu is None)) or (
-        E is None and (T is not None or nu is not None)
-    ):
-        raise ValueError(
-            "All of E, T, and nu must be specified together (either all given or all None)."
-        )
-
-    elif E is not None and T is not None and nu is not None:
-        exp_folder = find_experiment_folder(base_path, T, E, nu)
-        images, displacements, _ = load_images_and_displacements(
-            exp_folder, mode="original"
-        )
-
-        mu, lambda_ = compute_lame(E, nu)
-
-    elif exp_ind is not None:
-        if exp_ind == 1:
-            exp = "experiment_1"
-        elif exp_ind == 2:
-            exp = "experiment_2"
-        elif exp_ind == 3:
-            exp = "experiment_3"
-        else:
-            raise ValueError("exp_ind can only be 1, 2 or 3")
-        exp_folder = base_path / exp
-        results_ = []
-        for case_T_E_nu in sorted(exp_folder.iterdir()):
-            if case_T_E_nu.name != ".DS_Store":
-                E_case = extract_E_from_folder(case_T_E_nu.name)
-                T_case = extract_T_from_folder(case_T_E_nu.name)
-                nu_case = extract_nu_from_folder(case_T_E_nu.name)
-                results_.append(
-                    process_case(
-                        elastic_params,
-                        results_dir,
-                        of_for_computation,
-                        params_for_computation,
-                        global_flow=global_flow,
-                        T=T_case,
-                        E=E_case,
-                        nu=nu_case,
+            if of_for_computation == [None]:
+                displacement = displacements[0]
+                disp_gt = displacement
+                mask = disp_gt[0, 0] != 0
+                norm_disp = np.sqrt(np.mean(disp_gt**2))
+                wofv_path = Path("data/fine_tuning")
+                for sm in [20, 30, 40, 50, 60]:
+                    h_wofv = load_clean_wofv_displacement(
+                        wofv_path / f"smoothness_{sm}.mat"
                     )
-                )
-        return results_
+                    h_wofv_mask = h_wofv * mask
+                    rmse_flow_wofv = rmse(h_wofv_mask, disp_gt) / norm_disp
 
-    else:
-        raise ValueError("Can't run with nothing specified")
+                    print("smoothness:", sm)
+                    print("rmse dis:", rmse_flow_wofv)
 
     start_time = time.time()
     if image_id is not None:
         print(
             f"\nRunning analysis on T = {T}, E = {E}, nu = {nu} for image {image_id} ..."
         )
-    elif T is not None:
-        print(f"\nRunning analysis on T = {T}, E = {E}, nu = {nu} ...")
 
     results = compute_of_strain_traction(
         images=images,
@@ -167,47 +131,6 @@ def process_case(
         of_params=params_for_computation,
         global_flow=global_flow,
     )
-
-    if image_id is not None:
-        save_of_strain_traction(
-            images=images,
-            results=results,
-            save_path=results_dir
-            / "plots"
-            / f"strain_traction_plot_E_{E}_T_{T}_nu_{nu}_im_{image_id}.png",
-            implot=0,
-            vmaxstrain=elastic_params.vmaxstrain,
-            scale_flow=elastic_params.scale_flow,
-            step_flow=elastic_params.step_flow,
-            scale_traction=elastic_params.scale_traction,
-            step_traction=elastic_params.step_traction,
-            threshold_inf=elastic_params.threshold_inf,
-            threshold_sup=elastic_params.threshold_sup,
-            show=False,
-        )
-
-    else:
-        if (
-            T == elastic_params.T_for_plot
-            and E == elastic_params.E_for_plot
-            and nu == elastic_params.nu_for_plot
-        ):
-            save_of_strain_traction(
-                images=images,
-                results=results,
-                save_path=results_dir
-                / "plots"
-                / f"strain_traction_plot_E_{E}_T_{T}_nu_{nu}_im_{elastic_params.implot}.png",
-                implot=elastic_params.implot,
-                vmaxstrain=elastic_params.vmaxstrain,
-                scale_flow=elastic_params.scale_flow,
-                step_flow=elastic_params.step_flow,
-                scale_traction=elastic_params.scale_traction,
-                step_traction=elastic_params.step_traction,
-                threshold_inf=elastic_params.threshold_inf,
-                threshold_sup=elastic_params.threshold_sup,
-                show=False,
-            )
 
     elapsed = time.time() - start_time
     print(f"Analysis completed in {elapsed:.2f} seconds")
@@ -247,13 +170,27 @@ def main(
         "tvl1": (tv_l1, optical_flow_list.tvl1_list),
         "ilk": (ilk, optical_flow_list.ilk_list),
         "fista": (fista_of, optical_flow_list.fista_list),
+        "wofv": (None, None),
     }
 
     for of_func_name in elastic_exp.of_funcs:
+        print(of_func_name)
         if of_func_name not in of_methods:
             raise ValueError(f"Unknown optical flow method '{of_func_name}'")
 
         of_func, of_params = of_methods[of_func_name]
+
+        if of_func_name == "wofv":
+            print(of_func)
+            results_exp = process_case(
+                of_for_computation=[of_func],
+                params_for_computation={},
+                T=100.0,
+                E=500.0,
+                nu=0.45,
+                image_id="im_00_cell_003",
+                global_flow=optical_flow_list.global_flow,
+            )
 
         d = dataclasses.asdict(of_params)
         list_fields = {k: v for k, v in d.items() if isinstance(v, list)}
@@ -270,7 +207,6 @@ def main(
         )
 
         for params in combos:
-            print(params)
             if all(
                 x is None
                 for x in (
@@ -281,36 +217,36 @@ def main(
                     elastic_exp.image_id,
                 )
             ):
-                for exp_ind in [1]:
-                    results_exp = process_case(
-                        elastic_params=elastic_exp,
-                        results_dir=Path(general.results_dir),
-                        of_for_computation=[of_func],
-                        params_for_computation=[params],
-                        exp_ind=exp_ind,
-                        global_flow=optical_flow_list.global_flow,
-                    )
+                results_exp = process_case(
+                    of_for_computation=[of_func],
+                    params_for_computation=[params],
+                    T=100.0,
+                    E=500.0,
+                    nu=0.45,
+                    image_id="im_00_cell_003",
+                    global_flow=optical_flow_list.global_flow,
+                )
 
-                    with open(
-                        Path(general.results_dir)
-                        / "tables_dict"
-                        / f"results_exp_{exp_ind}_{elastic_exp.of_funcs[0]}_{params}.pkl",
-                        "wb",
-                    ) as f:
-                        pickle.dump(results_exp, f)
-                    df_exp = results_to_df(results_exp)
-                    df_exp.to_csv(
-                        Path(general.results_dir)
-                        / "tables_dict"
-                        / f"mean_rmse_experiment_{exp_ind}_{elastic_exp.of_funcs[0]}_{params}.csv",
-                        index=True,
-                    )
-                    save_table_rmse_with_std(
-                        df_exp,
-                        Path(general.results_dir)
-                        / "plots"
-                        / f"mean_rmse_experiment_{exp_ind}_{elastic_exp.of_funcs[0]}_{params}.png",
-                    )
+                with open(
+                    Path(general.results_dir)
+                    / "tables_dict"
+                    / f"results_T_100.0_E_500.0_nu_0.45_im_3_{elastic_exp.of_funcs[0]}_{params}.pkl",
+                    "wb",
+                ) as f:
+                    pickle.dump(results_exp, f)
+                df_exp = results_to_df(results_exp)
+                df_exp.to_csv(
+                    Path(general.results_dir)
+                    / "tables_dict"
+                    / f"mean_rmse_experiment_T_100.0_E_500.0_nu_0.45_im_3_{elastic_exp.of_funcs[0]}_{params}.csv",
+                    index=True,
+                )
+                save_table_rmse(
+                    df_exp,
+                    Path(general.results_dir)
+                    / "search_params"
+                    / f"mean_rmse_{elastic_exp.of_funcs[0]}_{params}.png",
+                )
 
 
 if __name__ == "__main__":

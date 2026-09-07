@@ -11,3 +11,5 @@ python -m mechanics.examples.run_elastic_noise_reg --config=mechanics/configs/op
 python -m mechanics.examples.run_elastic_noise --config=mechanics/configs/optical_flow.yaml --config=mechanics/configs/general.yaml --config=mechanics/configs/noise_exp.yaml
 
 python -m mechanics.examples.run_micro_image_exp --config=mechanics/configs/optical_flow.yaml --config=mechanics/configs/general.yaml --config=mechanics/configs/micro_exp.yaml
+
+python -m mechanics.examples.search_params --config=mechanics/configs/of_search_params.yaml --config=mechanics/configs/general.yaml --config=mechanics/configs/elastic_exp.yaml

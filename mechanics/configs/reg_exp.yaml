@@ -1,5 +1,5 @@
 reg_exp:
-  of_funcs: [fista, hs, farneback, ilk, tvl1, wofv]
+  of_funcs: [fista, farneback, ilk, wofv]
   T: 100.0
   E: 500.0
   nu: 0.45

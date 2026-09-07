@@ -18,7 +18,6 @@ from mechanics.src.optical_flow.algorithms import (
     fista_of,
     hs_of,
     ilk,
-    piv_algo,
     tv_l1,
 )
 from mechanics.src.plot_functions import plot_noise_reg
@@ -28,6 +27,7 @@ from mechanics.src.utils import (
     extract_nu_from_folder,
     find_experiment_folder,
     get_all_stds_from_folder,
+    load_clean_piv_displacement,
     load_clean_wofv_displacement,
     load_images_and_displacements,
 )
@@ -42,7 +42,8 @@ def process_test_reg(
     params_of: list[dict],
     global_flow: bool,
     factors_for_reg: list[float],
-    include_wofv: bool,
+    include_wofv: bool = False,
+    include_piv: bool = False,
 ) -> dict:
     """
     Runs a regularization parameter sensitivity analysis for optical flow-based strain and traction estimation.
@@ -94,6 +95,7 @@ def process_test_reg(
     images = [np.load(img_path)]
     displacements = [np.load(ugt_path)]
     wofv_displacements = None
+    piv_displacements = None
 
     method_names = []
     for _, method in enumerate(of_for_computation):
@@ -103,6 +105,11 @@ def process_test_reg(
         wofv_path = exp_folder / f"{image_for_test_reg}_wofv.mat"
         wofv_displacements = [load_clean_wofv_displacement(wofv_path)]
         method_names.append("wofv")
+
+    if include_piv:
+        piv_path = exp_folder / f"{image_for_test_reg}_piv.mat"
+        piv_displacements = [load_clean_piv_displacement(piv_path, images[0])]
+        method_names.append("piv")
 
     rmse_dict = {}
     rmse_dict["flow"] = {}
@@ -118,12 +125,12 @@ def process_test_reg(
         params_for_computation = copy.deepcopy(params_of)
         params_for_computation[0].alpha *= factor
         params_for_computation[0].beta *= factor
-        params_for_computation[1].alpha *= factor
-        params_for_computation[2].winSize = int(
-            params_for_computation[2].winSize * factor
+        # params_for_computation[1].alpha *= factor
+        params_for_computation[1].winSize = int(
+            params_for_computation[1].winSize * factor
         )
-        params_for_computation[3].radius *= factor
-        params_for_computation[4].tightness *= factor
+        params_for_computation[2].radius *= factor
+        # params_for_computation[4].attachment *= factor
 
         results_exp = compute_of_strain_traction(
             images=images,
@@ -134,6 +141,7 @@ def process_test_reg(
             of_params=params_for_computation,
             global_flow=global_flow,
             wofv_displacements=wofv_displacements,
+            piv_displacements=piv_displacements,
         )
 
         for m in method_names:
@@ -155,7 +163,8 @@ def process_noise(
     of_for_computation: list[Callable],
     params_for_computation: list[dict],
     global_flow: bool,
-    include_wofv: bool,
+    include_wofv: bool = False,
+    include_piv: bool = False,
 ) -> dict:
     """
     Runs a noise sensitivity analysis for optical flow-based strain and traction estimation.
@@ -196,16 +205,19 @@ def process_noise(
     if not noise_path.exists():
         raise FileNotFoundError(f"{noise_path} doesn't exist")
 
-    images, displacements, wofv_displacement = load_images_and_displacements(
-        noise_path,
-        mode="noisy",
-        load_wofv=include_wofv,
+    images, displacements, wofv_displacements, piv_displacements = (
+        load_images_and_displacements(
+            noise_path,
+            mode="noisy",
+            load_wofv=include_wofv,
+            load_piv=include_piv,
+        )
     )
 
-    reg_multipliers = np.ones_like(images)
+    reg_multipliers = [1] * len(images)
 
-    for i in range(len(reg_multipliers)):
-        reg_multipliers[i] += 0.1 * (i + 1)
+    for i in range(1, len(reg_multipliers)):
+        reg_multipliers[i] = reg_multipliers[i - 1] + 0.5
 
     results = compute_of_strain_traction(
         images=images,
@@ -215,7 +227,8 @@ def process_noise(
         of_functions=of_for_computation,
         of_params=params_for_computation,
         global_flow=global_flow,
-        wofv_displacements=wofv_displacement,
+        wofv_displacements=wofv_displacements,
+        piv_displacements=piv_displacements,
         reg_multipliers=reg_multipliers,
     )
     elapsed = time.time() - start_time
@@ -227,6 +240,9 @@ def process_noise(
 
     if include_wofv:
         method_names.append("wofv")
+
+    if include_piv:
+        method_names.append("piv")
 
     rmse_dict = {}
     rmse_dict["flow"] = {}
@@ -272,14 +288,18 @@ def main(
         "tvl1": (tv_l1, optical_flow.tvl1),
         "ilk": (ilk, optical_flow.ilk),
         "fista": (fista_of, optical_flow.fista),
-        "piv": (piv_algo, optical_flow.piv),
     }
 
     of_for_computation, params_for_computation = [], []
 
+    include_wofv = False
+    include_piv = False
     for of_func_name in reg_exp.of_funcs:
         if of_func_name == "wofv":
             include_wofv = True
+
+        elif of_func_name == "piv":
+            include_piv = True
 
         elif of_func_name not in of_methods:
             raise ValueError(f"Unknown optical flow method '{of_func_name}'")
@@ -310,6 +330,7 @@ def main(
             factors_for_reg=reg_exp.factors,
             global_flow=optical_flow.global_flow,
             include_wofv=include_wofv,
+            include_piv=include_piv,
         )
         for key in ["deformation", "traction"]:
             for method in rmse_dict_reg[key]:
@@ -344,6 +365,7 @@ def main(
             params_for_computation=params_for_computation,
             global_flow=optical_flow.global_flow,
             include_wofv=include_wofv,
+            include_piv=include_piv,
         )
         for key in ["deformation", "traction"]:
             for method in rmse_dict_noise[key]:

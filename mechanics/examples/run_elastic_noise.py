@@ -11,7 +11,15 @@ import numpy as np
 
 from mechanics.src.config import GeneralParams, NoiseExperiment, OpticalFlowParams
 from mechanics.src.meca_of_pipeline import compute_of_strain_traction
-from mechanics.src.optical_flow.algorithms import farneback, fista_of, hs_of, ilk, tv_l1
+from mechanics.src.optical_flow.algorithms import (
+    farneback,
+    fista_of,
+    hs_of,
+    ilk,
+    piv_algo,
+    raft_algo,
+    tv_l1,
+)
 from mechanics.src.plot_functions import plot_mean_error_noise
 from mechanics.src.utils import (
     compute_lame,
@@ -73,10 +81,10 @@ def process_noise(
         load_wofv=include_wofv,
     )
 
-    reg_multipliers = np.ones_like(images)
+    reg_multipliers = [1] * len(images)
 
-    for i in range(len(reg_multipliers)):
-        reg_multipliers[i] += 0.05 * i
+    for i in range(1, len(reg_multipliers)):
+        reg_multipliers[i] = reg_multipliers[i - 1] + 0.5
 
     results = compute_of_strain_traction(
         images=images,
@@ -89,6 +97,7 @@ def process_noise(
         wofv_displacements=wofv_displacements,
         reg_multipliers=reg_multipliers,
     )
+
     elapsed = time.time() - start_time
     print(f"Noise analysis completed in {elapsed:.2f} seconds")
     return results
@@ -116,6 +125,8 @@ def main(
         "tvl1": (tv_l1, optical_flow.tvl1),
         "ilk": (ilk, optical_flow.ilk),
         "fista": (fista_of, optical_flow.fista),
+        "piv": (piv_algo, optical_flow.piv),
+        "raft": (raft_algo, {}),
     }
 
     of_for_computation, params_for_computation = [], []

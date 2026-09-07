@@ -3,7 +3,7 @@ optical_flow_list:
 
   fista_list:
     num_iter: [300] 
-    num_warp: [7]
+    num_warp: [5]
     alpha: [0.01, 0.02, 0.05, 0.1] 
     beta: [0.4, 0.5, 0.6, 0.8] 
     eps: 0.001
@@ -40,7 +40,14 @@ optical_flow_list:
     prefilter: False
 
   ilk_list:
-    radius: [3.5, 4, 4.5]
+    radius: [3.5, 4, 4.5, 5]
     num_warp: [7] 
     gaussian: True 
     prefilter: True 
+
+  piv_list:
+    window_size: [5]
+    overlap: [2]
+    search_area: [5]
+    s2n_thresh: [1.0]
+    method: "cubic"

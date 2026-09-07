@@ -14,6 +14,7 @@ from mechanics.src.plot_functions import plot_pos_dis_strain_trac_micro_image
 from mechanics.src.utils import (
     compute_lame,
     generate_mask_on_micro_image,
+    load_clean_wofv_displacement,
     load_order_clean,
     remap,
 )
@@ -26,6 +27,7 @@ def process_image(
     of_for_computation: list[Callable],
     params_for_computation: list[dict],
     micro_exp: MicroExperiment,
+    wofv_displacement: np.ndarray | None = None,
 ) -> dict | list[dict]:
     """
     Process a microscopy image of a cell by computing optical flow–based
@@ -51,6 +53,7 @@ def process_image(
         of_functions=of_for_computation,
         of_params=params_for_computation,
         global_flow=False,
+        wofv_displacement=wofv_displacement,
     )
 
     plot_pos_dis_strain_trac_micro_image(
@@ -124,13 +127,20 @@ def main(
 
     of_for_computation, params_for_computation = [], []
 
+    wofv_displacement = None
+
     for of_func_name in micro_exp.of_funcs:
-        if of_func_name not in of_methods:
+        if of_func_name == "wofv":
+            name_im = "micro_img_wofv_40.mat"
+            wofv_path = Path(micro_exp.path).parent / name_im
+            wofv_displacement = [load_clean_wofv_displacement(wofv_path)]
+        elif of_func_name not in of_methods:
             raise ValueError(f"Unknown optical flow method '{of_func_name}'")
 
-        of_func, of_params = of_methods[of_func_name]
-        of_for_computation.append(of_func)
-        params_for_computation.append(of_params)
+        else:
+            of_func, of_params = of_methods[of_func_name]
+            of_for_computation.append(of_func)
+            params_for_computation.append(of_params)
 
     process_image(
         image=image,
@@ -139,6 +149,7 @@ def main(
         of_for_computation=of_for_computation,
         params_for_computation=params_for_computation,
         micro_exp=micro_exp,
+        wofv_displacement=wofv_displacement,
     )
 
 
